@@ -8,10 +8,12 @@ import {
 type TransitionMap<T extends string> = Record<T, readonly T[]>;
 
 export const PROGRAM_OFFERING_TRANSITIONS: TransitionMap<ProgramOfferingStatus> = {
-  DRAFT: ['OPEN', 'CANCELLED'],
+  DRAFT: ['PUBLISHED', 'OPEN', 'CANCELLED', 'ARCHIVED'],
+  PUBLISHED: ['OPEN', 'CANCELLED', 'ARCHIVED'],
   OPEN: ['CLOSED', 'CANCELLED'],
-  CLOSED: [],
-  CANCELLED: [],
+  CLOSED: ['ARCHIVED'],
+  CANCELLED: ['ARCHIVED'],
+  ARCHIVED: [],
 };
 
 export const PROGRAM_STAGE_OFFERING_TRANSITIONS: TransitionMap<ProgramStageOfferingStatus> = {

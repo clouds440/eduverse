@@ -18,6 +18,13 @@ const ADMISSIONS_READER_ROLES = new Set<string>([
 
 interface OnlineAdmissionsToolInput {
   search?: string;
+  providerSlug?: string;
+  programType?: string;
+  subject?: string;
+  location?: string;
+  onlineOnly?: boolean;
+  maxFee?: number;
+  deadlineBefore?: string;
   status?: OnlineAdmissionSubmissionStatus;
   departmentId?: string;
   programId?: string;
@@ -43,8 +50,13 @@ export class AIOnlineAdmissionsToolsService implements OnModuleInit {
     });
     this.toolRegistry.register({
       name: 'getOnlineAdmissionOfferingReadiness',
-      description: 'Read-only, role- and department-scoped online admission offering readiness. Returns organization public-admission state, enabled or optionally disabled offerings, application windows, document requirements, and submission counts.',
+      description: 'Read-only, role- and department-scoped online admission offering readiness. Returns organization public-admission state, enabled or optionally disabled offerings, application windows, forms, fees, eligibility, document requirements, and submission counts.',
       run: (input, context) => this.getOfferingReadiness(context, parseInput(input)),
+    });
+    this.toolRegistry.register({
+      name: 'getPublicAdmissionsCatalogContext',
+      description: 'Read-only public admissions catalog context. Returns provider-neutral open offerings with provider, program, delivery, location, deadline, fee, eligibility, funding, and application href. Accepts search, providerSlug, programType, subject, location, onlineOnly, maxFee, deadlineBefore, and limit.',
+      run: (input) => this.getPublicCatalogContext(parseInput(input)),
     });
   }
 
@@ -85,9 +97,9 @@ export class AIOnlineAdmissionsToolsService implements OnModuleInit {
           applicantName: submission.applicantName,
           applicantEmail: submission.applicantEmail,
           status: submission.status,
-          department: submission.department.name,
+          department: submission.department?.name || 'Provider admissions',
           program: `${submission.program.code} - ${submission.program.name}`,
-          academicCycle: submission.academicCycle.code || submission.academicCycle.name,
+          academicCycle: submission.academicCycle?.code || submission.academicCycle?.name || 'Provider intake',
           submittedAt: submission.submittedAt.toISOString(),
           requiredDocuments: submission.requiredDocumentCount,
           uploadedRequiredDocuments: submission.uploadedRequiredDocumentCount,
@@ -120,17 +132,22 @@ export class AIOnlineAdmissionsToolsService implements OnModuleInit {
 
     const search = input.search?.trim();
     const where: Prisma.ProgramOfferingWhereInput = {
-      organizationId: context.orgId,
+      campusBinding: {
+        organizationId: context.orgId,
+        ...(input.academicCycleId ? { academicCycleId: input.academicCycleId } : {}),
+      },
       ...(input.includeDisabled ? {} : { onlineAdmissionEnabled: true }),
       ...(input.programId ? { programId: input.programId } : {}),
-      ...(input.academicCycleId ? { academicCycleId: input.academicCycleId } : {}),
       program: {
-        ...(departmentIds ? { departmentId: { in: departmentIds.length ? departmentIds : ['__no_department_scope__'] } } : {}),
+        campusConfiguration: {
+          organizationId: context.orgId,
+          ...(departmentIds ? { departmentId: { in: departmentIds.length ? departmentIds : ['__no_department_scope__'] } } : {}),
+        },
         ...(search ? {
           OR: [
             { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
             { code: { contains: search, mode: Prisma.QueryMode.insensitive } },
-            { department: { name: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { campusConfiguration: { department: { name: { contains: search, mode: Prisma.QueryMode.insensitive } } } },
           ],
         } : {}),
       },
@@ -143,12 +160,23 @@ export class AIOnlineAdmissionsToolsService implements OnModuleInit {
       this.prisma.programOffering.findMany({
         where,
         take: clampLimit(input.limit, 10),
-        orderBy: [{ academicCycle: { startDate: 'desc' } }, { program: { admissionsSortOrder: 'asc' } }],
+        orderBy: [{ campusBinding: { academicCycle: { startDate: 'desc' } } }, { program: { name: 'asc' } }],
         include: {
-          program: { select: { id: true, name: true, code: true, status: true, isVisibleForAdmissions: true, department: { select: { id: true, name: true } } } },
-          curriculumVersion: { select: { id: true, name: true, code: true, status: true, isDefaultForAdmissions: true } },
-          academicCycle: { select: { id: true, name: true, code: true, status: true, startDate: true, endDate: true } },
-          onlineAdmissionDocumentRequirements: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          program: { select: { id: true, name: true, code: true, status: true, campusConfiguration: { select: { department: { select: { id: true, name: true } } } } } },
+          campusBinding: { include: {
+            curriculumVersion: { select: { id: true, name: true, code: true, status: true, isDefaultForAdmissions: true } },
+            academicCycle: { select: { id: true, name: true, code: true, status: true, startDate: true, endDate: true } },
+          } },
+          fees: { orderBy: { sortOrder: 'asc' } },
+          fundingOptions: { orderBy: { sortOrder: 'asc' } },
+          admissionRequirements: { orderBy: { sortOrder: 'asc' } },
+          applicationConfig: {
+            include: {
+              applicationVersion: {
+                include: { documentRequirements: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
+              },
+            },
+          },
           _count: { select: { onlineAdmissionSubmissions: true } },
         },
       }),
@@ -162,32 +190,79 @@ export class AIOnlineAdmissionsToolsService implements OnModuleInit {
         organization: {
           status: organization?.status ?? null,
           publicAdmissionsEnabled: organization?.onlineAdmissionsEnabled ?? false,
-          publicAdmissionsHref: organization?.slug ? `/admissions/${organization.slug}` : '/admissions',
+          publicAdmissionsHref: organization?.slug ? `/admissions/providers/${organization.slug}` : '/admissions',
         },
         offerings: offerings.map((offering) => ({
           offeringId: offering.id,
           program: `${offering.program.code} - ${offering.program.name}`,
-          department: offering.program.department.name,
+          department: offering.program.campusConfiguration?.department.name ?? null,
           offeringStatus: offering.status,
           programStatus: offering.program.status,
-          curriculum: `${offering.curriculumVersion.code} - ${offering.curriculumVersion.name}`,
-          curriculumStatus: offering.curriculumVersion.status,
-          isDefaultAdmissionsCurriculum: offering.curriculumVersion.isDefaultForAdmissions,
-          academicCycle: offering.academicCycle.code || offering.academicCycle.name,
+          curriculum: offering.campusBinding ? `${offering.campusBinding.curriculumVersion.code} - ${offering.campusBinding.curriculumVersion.name}` : null,
+          curriculumStatus: offering.campusBinding?.curriculumVersion.status ?? null,
+          isDefaultAdmissionsCurriculum: offering.campusBinding?.curriculumVersion.isDefaultForAdmissions ?? false,
+          academicCycle: offering.campusBinding ? offering.campusBinding.academicCycle.code || offering.campusBinding.academicCycle.name : null,
           onlineAdmissionEnabled: offering.onlineAdmissionEnabled,
-          opensAt: offering.opensAt?.toISOString() ?? null,
-          closesAt: offering.closesAt?.toISOString() ?? null,
-          applicationWindowOpen: (!offering.opensAt || offering.opensAt.getTime() <= now)
-            && (!offering.closesAt || offering.closesAt.getTime() >= now),
+          opensAt: offering.applicationOpensAt?.toISOString() ?? null,
+          closesAt: offering.applicationClosesAt?.toISOString() ?? null,
+          applicationWindowOpen: (!offering.applicationOpensAt || offering.applicationOpensAt.getTime() <= now)
+            && (!offering.applicationClosesAt || offering.applicationClosesAt.getTime() >= now),
           capacity: offering.capacity,
           submissions: offering._count.onlineAdmissionSubmissions,
-          documentRequirements: offering.onlineAdmissionDocumentRequirements.map((requirement) => ({
+          publicSummary: offering.publicSummary,
+          feeCount: offering.fees?.length ?? 0,
+          eligibilityCount: offering.admissionRequirements?.length ?? 0,
+          fundingCount: offering.fundingOptions?.length ?? 0,
+          applicationForm: offering.applicationConfig ? {
+            name: offering.applicationConfig.applicationVersion.id,
+            version: offering.applicationConfig.applicationVersion.version,
+            status: offering.applicationConfig.applicationVersion.status,
+          } : null,
+          documentRequirements: (offering.applicationConfig?.applicationVersion.documentRequirements || []).map((requirement) => ({
             label: requirement.label,
             required: requirement.isRequired,
             acceptedMimeTypes: requirement.acceptedMimeTypes,
             maxFileSizeBytes: requirement.maxFileSizeBytes,
           })),
           href: `/programs/${offering.program.id}`,
+        })),
+      },
+    };
+  }
+
+  private async getPublicCatalogContext(input: OnlineAdmissionsToolInput): Promise<AIToolResult<unknown>> {
+    const offerings = await this.admissions.listPublicOfferings({
+      search: input.search,
+      providerSlug: input.providerSlug,
+      programType: input.programType,
+      subject: input.subject,
+      location: input.location,
+      onlineOnly: input.onlineOnly,
+      maxFee: input.maxFee,
+      deadlineBefore: input.deadlineBefore,
+    });
+    return {
+      ok: true,
+      data: {
+        filters: compactFilters(input),
+        totalRecords: offerings.length,
+        offerings: offerings.slice(0, clampLimit(input.limit, 10)).map((offering) => ({
+          offeringId: offering.id,
+          provider: offering.provider.displayName,
+          providerSlug: offering.provider.slug,
+          program: `${offering.program.code} - ${offering.program.name}`,
+          programType: offering.program.programType,
+          subjectArea: offering.program.subjectArea,
+          deliveryMode: offering.deliveryMode,
+          attendanceMode: offering.attendanceMode,
+          intakeName: offering.intakeName,
+          applicationClosesAt: offering.applicationClosesAt,
+          location: offering.locations?.[0]?.providerLocation.displayLabel || offering.organization?.location || null,
+          fees: (offering.fees || []).map((fee) => ({ label: fee.label, amount: fee.amount, currencyCode: fee.currencyCode, frequency: fee.frequency })),
+          eligibility: (offering.admissionRequirements || []).map((requirement) => ({ label: requirement.label, required: requirement.isRequired })),
+          funding: (offering.fundingOptions || []).map((option) => ({ title: option.title, amountSummary: option.amountSummary })),
+          documentRequirements: (offering.applicationForm?.documentRequirements || []).map((requirement) => ({ label: requirement.label, required: requirement.isRequired })),
+          href: `/admissions/apply/${offering.id}`,
         })),
       },
     };
@@ -199,6 +274,13 @@ function parseInput(input: unknown): OnlineAdmissionsToolInput {
   const rawStatus = stringValue(value.status)?.toUpperCase();
   return {
     search: stringValue(value.search ?? value.query ?? value.q),
+    providerSlug: stringValue(value.providerSlug),
+    programType: stringValue(value.programType),
+    subject: stringValue(value.subject),
+    location: stringValue(value.location),
+    onlineOnly: booleanValue(value.onlineOnly),
+    maxFee: numberValue(value.maxFee),
+    deadlineBefore: stringValue(value.deadlineBefore),
     status: rawStatus && Object.values(OnlineAdmissionSubmissionStatus).includes(rawStatus as OnlineAdmissionSubmissionStatus)
       ? rawStatus as OnlineAdmissionSubmissionStatus
       : undefined,

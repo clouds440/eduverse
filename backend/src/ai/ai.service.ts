@@ -878,6 +878,9 @@ function selectRelevantTools(
   }
 
   if (mentionsAny(text, ['online admission', 'admission application', 'applicant', 'application status', 'missing document', 'rejected application', 'accepted application'])) {
+    if (mentionsAny(text, ['public admission', 'admissions portal', 'apply online', 'open program', 'open course', 'provider', 'discover'])) {
+      add('getPublicAdmissionsCatalogContext', { search: prompt, limit: 10 });
+    }
     add('getOnlineAdmissionsContext', {
       search: prompt,
       limit: 10,
@@ -1310,7 +1313,7 @@ function includesCoveredByTool(name: string) {
   if (name === 'getOperationsContext') return ['operations'];
   if (name === 'getCommunicationContext') return ['communication'];
   if (name === 'getFinanceSummary') return ['finance'];
-  if (name === 'getOnlineAdmissionsContext' || name === 'getOnlineAdmissionOfferingReadiness') return ['admissions'];
+  if (name === 'getOnlineAdmissionsContext' || name === 'getOnlineAdmissionOfferingReadiness' || name === 'getPublicAdmissionsCatalogContext') return ['admissions'];
   if (name === 'getEntityRelationshipContext') return ['relationships'];
   if (name === 'getAcademicPlanningContext') return ['planning'];
   if (name === 'getEnrollmentFeasibilityContext') return ['enrollment'];

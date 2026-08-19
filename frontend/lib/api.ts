@@ -27,7 +27,7 @@ import type {
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
     ChatDeviceHistoryGrantPayload,
-    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, OnlineAdmissionDocumentRequirement, OnlineAdmissionDocumentRequirementInput, OnlineAdmissionSubmission, OnlineAdmissionSubmissionStatus, PublicOnlineAdmissionOrganization, PublicOnlineAdmissionOrganizationDetail, PublicOnlineAdmissionOffering, PublicOnlineAdmissionUpdateSubmission, CreateOnlineAdmissionSubmissionRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
+    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, ProviderLocation, AdmissionApplicationTemplate, AdmissionApplicationTemplateVersion, AdmissionDocumentRequirementInput, AdmissionFormDefinition, OnlineAdmissionSubmission, OnlineAdmissionSubmissionStatus, PublicOnlineAdmissionOrganization, PublicOnlineAdmissionOrganizationDetail, PublicOnlineAdmissionProviderDetail, PublicOnlineAdmissionOffering, PublicOnlineAdmissionUpdateSubmission, CreateOnlineAdmissionSubmissionRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
     AcademicCycleArchiveStatusResponse, PastRecordFilters, PastRecordOptions, PastRecordSectionDetail, PastRecordSectionSummary, PastRecordStudentSummary,
     CohortSectionExpansionPreview, CourseResultScheme, CourseResultSchemePreview, UpsertCourseResultSchemeRequest,
 } from '@/types';
@@ -197,7 +197,10 @@ function buildQueryString(params: QueryParams): string {
 
 function buildOnlineAdmissionSubmissionBody(data: CreateOnlineAdmissionSubmissionRequest) {
     const documents = data.documents || {};
-    const files = Object.entries(documents).filter(([, file]) => file instanceof File) as Array<[string, File]>;
+    const files = Object.entries(documents).flatMap(([id, value]) => {
+        const entries = Array.isArray(value) ? value : value instanceof File ? [value] : [];
+        return entries.map((file) => [id, file] as const);
+    });
     if (files.length === 0) {
         const { documents: _documents, ...payload } = data;
         return JSON.stringify(payload);
@@ -209,11 +212,16 @@ function buildOnlineAdmissionSubmissionBody(data: CreateOnlineAdmissionSubmissio
     return form;
 }
 
-function buildOnlineAdmissionDocumentsBody(documents: Record<string, File | null | undefined>) {
+function buildOnlineAdmissionDocumentsBody(
+    documents: Record<string, File | File[] | null | undefined>,
+    documentExpiryDates: Record<string, string> = {},
+) {
     const form = new FormData();
-    Object.entries(documents).forEach(([requirementId, file]) => {
-        if (file instanceof File) form.append(`document:${requirementId}`, file);
+    Object.entries(documents).forEach(([requirementId, value]) => {
+        const files = Array.isArray(value) ? value : value instanceof File ? [value] : [];
+        files.forEach((file) => form.append(`document:${requirementId}`, file));
     });
+    form.append('documentExpiryDates', JSON.stringify(documentExpiryDates));
     return form;
 }
 
@@ -1527,36 +1535,55 @@ export const api = {
             request<ProgramOffering[]>(`/org/program-offerings${buildQueryString(params)}`, { token }),
         get: (id: string, token: string) =>
             request<ProgramOffering>(`/org/program-offerings/${id}`, { token }),
+        listProviderLocations: (token: string) =>
+            request<ProviderLocation[]>('/org/program-offerings/provider-locations/list', { token }),
+        createProviderLocation: (data: { name: string; displayLabel: string; code?: string; addressLine1?: string; city?: string; region?: string; countryCode?: string; postalCode?: string }, token: string) =>
+            request<ProviderLocation>('/org/program-offerings/provider-locations', { method: 'POST', body: JSON.stringify(data), token }),
         readiness: (id: string, token: string) =>
             request<ProgramOfferingReadiness>(`/org/program-offerings/${id}/readiness`, { token }),
-        getOnlineAdmissionRequirements: (id: string, token: string) =>
-            request<OnlineAdmissionDocumentRequirement[]>(`/org/program-offerings/${id}/online-admission-requirements`, { token }),
-        replaceOnlineAdmissionRequirements: (id: string, requirements: OnlineAdmissionDocumentRequirementInput[], token: string) =>
-            request<OnlineAdmissionDocumentRequirement[]>(`/org/program-offerings/${id}/online-admission-requirements`, { method: 'PUT', body: JSON.stringify({ requirements }), token }),
         create: (data: CreateProgramOfferingRequest, token: string) =>
             request<ProgramOffering>('/org/program-offerings', { method: 'POST', body: JSON.stringify(data), token }),
-        update: (id: string, data: Partial<Omit<CreateProgramOfferingRequest, 'programId' | 'curriculumVersionId' | 'academicCycleId'>>, token: string) =>
+        update: (id: string, data: Partial<Omit<CreateProgramOfferingRequest, 'programId' | 'code' | 'slug' | 'campusBinding'>> & { stages?: CreateProgramOfferingRequest['campusBinding']['stages'] }, token: string) =>
             request<ProgramOffering>(`/org/program-offerings/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
     },
 
+    admissionForms: {
+        list: (token: string) => request<AdmissionApplicationTemplate[]>('/org/admission-forms', { token }),
+        get: (id: string, token: string) => request<AdmissionApplicationTemplate>(`/org/admission-forms/${id}`, { token }),
+        create: (data: { name: string; description?: string; definition: AdmissionFormDefinition; consentText?: string; consentVersion?: string; documentRequirements: AdmissionDocumentRequirementInput[] }, token: string) =>
+            request<AdmissionApplicationTemplate>('/org/admission-forms', { method: 'POST', body: JSON.stringify(data), token }),
+        createVersion: (id: string, token: string) =>
+            request<AdmissionApplicationTemplateVersion>(`/org/admission-forms/${id}/versions`, { method: 'POST', token }),
+        updateVersion: (id: string, data: { definition: AdmissionFormDefinition; consentText?: string; consentVersion?: string; documentRequirements: AdmissionDocumentRequirementInput[] }, token: string) =>
+            request<AdmissionApplicationTemplateVersion>(`/org/admission-forms/versions/${id}`, { method: 'PUT', body: JSON.stringify(data), token }),
+        publishVersion: (id: string, token: string) =>
+            request<AdmissionApplicationTemplateVersion>(`/org/admission-forms/versions/${id}/publish`, { method: 'PATCH', token }),
+        bindOffering: (offeringId: string, data: { applicationVersionId: string; onlineAdmissionEnabled?: boolean; onlineAdmissionInstructions?: string; allowApplicantUpdates?: boolean; requireEmailVerification?: boolean }, token: string) =>
+            request<ProgramOffering['applicationConfig']>(`/org/admission-forms/offerings/${offeringId}`, { method: 'PUT', body: JSON.stringify(data), token }),
+    },
+
     publicOnlineAdmissions: {
+        listOfferings: (params: { search?: string; providerSlug?: string; programType?: string; subject?: string; location?: string; onlineOnly?: boolean; minFee?: number; maxFee?: number; intake?: string; deadlineBefore?: string } = {}) =>
+            request<PublicOnlineAdmissionOffering[]>(`/v1/public/admissions/offerings${buildQueryString(params)}`),
+        getProvider: (slug: string) =>
+            request<PublicOnlineAdmissionProviderDetail>(`/v1/public/admissions/providers/${slug}`),
         listOrganizations: (params: { search?: string } = {}) =>
             request<PublicOnlineAdmissionOrganization[]>(`/public/online-admissions/organizations${buildQueryString(params)}`),
         getOrganization: (slug: string) =>
             request<PublicOnlineAdmissionOrganizationDetail>(`/public/online-admissions/organizations/${slug}`),
         getOffering: (id: string) =>
-            request<PublicOnlineAdmissionOffering>(`/public/online-admissions/offerings/${id}`),
+            request<PublicOnlineAdmissionOffering>(`/v1/public/admissions/offerings/${id}`),
         submit: (offeringId: string, data: CreateOnlineAdmissionSubmissionRequest) =>
-            request<{ reference: string; status: OnlineAdmissionSubmissionStatus }>(`/public/online-admissions/offerings/${offeringId}/submissions`, {
+            request<{ reference: string; status: OnlineAdmissionSubmissionStatus }>(`/v1/public/admissions/offerings/${offeringId}/submissions`, {
                 method: 'POST',
                 body: buildOnlineAdmissionSubmissionBody(data),
             }),
         getUpdateSubmission: (token: string) =>
-            request<PublicOnlineAdmissionUpdateSubmission>(`/public/online-admissions/submissions/update/${encodeURIComponent(token)}`),
-        uploadUpdateDocuments: (token: string, documents: Record<string, File | null | undefined>) =>
-            request<PublicOnlineAdmissionUpdateSubmission>(`/public/online-admissions/submissions/update/${encodeURIComponent(token)}/documents`, {
+            request<PublicOnlineAdmissionUpdateSubmission>(`/v1/public/admissions/submissions/update/${encodeURIComponent(token)}`),
+        uploadUpdateDocuments: (token: string, documents: Record<string, File | File[] | null | undefined>, documentExpiryDates: Record<string, string> = {}) =>
+            request<PublicOnlineAdmissionUpdateSubmission>(`/v1/public/admissions/submissions/update/${encodeURIComponent(token)}/documents`, {
                 method: 'POST',
-                body: buildOnlineAdmissionDocumentsBody(documents),
+                body: buildOnlineAdmissionDocumentsBody(documents, documentExpiryDates),
             }),
     },
 
@@ -1569,6 +1596,8 @@ export const api = {
             request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}`, { token }),
         updateStatus: (id: string, data: { status: OnlineAdmissionSubmissionStatus; note?: string }, token: string) =>
             request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}/status`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        requestDocument: (id: string, data: { key: string; label: string; description?: string; category?: string; acceptedMimeTypes?: string[]; acceptedExtensions?: string[]; maxFileSizeBytes?: number; maxFileCount?: number; requiresExpiryDate?: boolean; dueAt?: string }, token: string) =>
+            request(`/org/online-admissions/${id}/document-requests`, { method: 'POST', body: JSON.stringify(data), token }),
         markAdmitted: (id: string, data: { studentId: string; note?: string }, token: string) =>
             request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}/admit`, { method: 'PATCH', body: JSON.stringify(data), token }),
     },

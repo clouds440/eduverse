@@ -12,9 +12,7 @@ describe('Online admissions controllers', () => {
     const controller = new PublicOnlineAdmissionsController(admissions);
     const file = { originalname: 'transcript.pdf' } as Express.Multer.File;
     const payload = {
-      applicantName: 'Ada Lovelace',
-      applicantEmail: 'ada@example.com',
-      formData: {},
+      answers: { fullName: 'Ada Lovelace', email: 'ada@example.com' },
       captchaToken: 'captcha-token',
     };
 

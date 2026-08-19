@@ -35,7 +35,7 @@ export class TranscriptsService {
         cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true } } } },
         programEnrollments: {
           include: {
-            program: { include: { department: true } },
+            program: { include: { campusConfiguration: { include: { department: true } } } },
             curriculumVersion: { include: { stages: { orderBy: { sequence: 'asc' }, include: { courseRequirements: true } } } },
             stageEnrollments: { orderBy: { createdAt: 'asc' } },
           },

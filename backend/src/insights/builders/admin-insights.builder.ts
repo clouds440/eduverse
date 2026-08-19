@@ -85,7 +85,7 @@ export class AdminInsightsBuilder {
       }),
       this.getUpcomingAssessments(orgId, now),
       this.getOperationalHealth(orgId, now, range.from, range.to),
-      this.prisma.program.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+      this.prisma.program.count({ where: { campusConfiguration: { organizationId: orgId }, status: 'ACTIVE' } }),
       this.getProgramCoverage(orgId),
       this.getSectionRelationshipSummary(orgId),
     ]);
@@ -724,94 +724,49 @@ export class AdminInsightsBuilder {
   }
 
   private async getProgramCoverage(orgId: string) {
-    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
-    if (!hasProgramRollout) {
-      const programs = await this.prisma.program.findMany({
-        where: { organizationId: orgId, status: 'ACTIVE' },
-        select: { id: true, name: true, code: true },
-        orderBy: { name: 'asc' },
-      });
-      return {
-        activePrograms: programs.length,
-        openOfferings: 0,
-        unofferedActivePrograms: programs.length,
-        programsWithoutActiveCurriculum: 0,
-        mappedSections: 0,
-        topPrograms: programs.slice(0, 10).map((program) => ({
-          program: program.code || program.name,
-          activeEnrollments: 0,
-          openOfferings: 0,
-          mappedSections: 0,
-          activeCurricula: 0,
-        })),
-      };
-    }
-    try {
-      const programs = await this.prisma.program.findMany({
-        where: { organizationId: orgId, status: 'ACTIVE' },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          curriculumVersions: { where: { status: 'ACTIVE' }, select: { id: true } },
-          studentEnrollments: { where: { status: { in: [StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE, StudentProgramEnrollmentStatus.ON_HOLD] } }, select: { id: true } },
-          offerings: {
-            include: {
-              stageOfferings: { include: { _count: { select: { sectionMappings: true } } } },
-            },
+    const programs = await this.prisma.program.findMany({
+      where: { campusConfiguration: { organizationId: orgId }, status: 'ACTIVE' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        curriculumVersions: { where: { status: 'ACTIVE' }, select: { id: true } },
+        studentEnrollments: { where: { status: { in: [StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE, StudentProgramEnrollmentStatus.ON_HOLD] } }, select: { id: true } },
+        offerings: {
+          include: {
+            stageOfferings: { include: { _count: { select: { sectionMappings: true } } } },
           },
         },
-        orderBy: { name: 'asc' },
-      });
+      },
+      orderBy: { name: 'asc' },
+    });
 
-      const programRows = programs.map((program) => {
-        const openOfferings = program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN);
-        const mappedSections = openOfferings.reduce(
-          (sum, offering) => sum + offering.stageOfferings.reduce((stageSum, stage) => stageSum + stage._count.sectionMappings, 0),
-          0,
-        );
-        return {
-          program: program.code || program.name,
-          activeEnrollments: program.studentEnrollments.length,
-          openOfferings: openOfferings.length,
-          mappedSections,
-          activeCurricula: program.curriculumVersions.length,
-        };
-      });
-      const topPrograms = [...programRows]
-        .sort((a, b) => b.activeEnrollments - a.activeEnrollments || b.openOfferings - a.openOfferings || a.program.localeCompare(b.program))
-        .slice(0, 10);
+    const programRows = programs.map((program) => {
+      const openOfferings = program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN);
+      const mappedSections = openOfferings.reduce(
+        (sum, offering) => sum + offering.stageOfferings.reduce((stageSum, stage) => stageSum + stage._count.sectionMappings, 0),
+        0,
+      );
+      return {
+        program: program.code || program.name,
+        activeEnrollments: program.studentEnrollments.length,
+        openOfferings: openOfferings.length,
+        mappedSections,
+        activeCurricula: program.curriculumVersions.length,
+      };
+    });
+    const topPrograms = [...programRows]
+      .sort((a, b) => b.activeEnrollments - a.activeEnrollments || b.openOfferings - a.openOfferings || a.program.localeCompare(b.program))
+      .slice(0, 10);
 
-      return {
-        activePrograms: programs.length,
-        openOfferings: programs.reduce((sum, program) => sum + program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN).length, 0),
-        unofferedActivePrograms: programs.filter((program) => !program.offerings.some((offering) => offering.status === ProgramOfferingStatus.OPEN)).length,
-        programsWithoutActiveCurriculum: programs.filter((program) => program.curriculumVersions.length === 0).length,
-        mappedSections: programRows.reduce((sum, program) => sum + program.mappedSections, 0),
-        topPrograms,
-      };
-    } catch (error) {
-      if (!isMissingSchemaObjectError(error)) throw error;
-      const programs = await this.prisma.program.findMany({
-        where: { organizationId: orgId, status: 'ACTIVE' },
-        select: { id: true, name: true, code: true },
-        orderBy: { name: 'asc' },
-      });
-      return {
-        activePrograms: programs.length,
-        openOfferings: 0,
-        unofferedActivePrograms: programs.length,
-        programsWithoutActiveCurriculum: 0,
-        mappedSections: 0,
-        topPrograms: programs.slice(0, 10).map((program) => ({
-          program: program.code || program.name,
-          activeEnrollments: 0,
-          openOfferings: 0,
-          mappedSections: 0,
-          activeCurricula: 0,
-        })),
-      };
-    }
+    return {
+      activePrograms: programs.length,
+      openOfferings: programs.reduce((sum, program) => sum + program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN).length, 0),
+      unofferedActivePrograms: programs.filter((program) => !program.offerings.some((offering) => offering.status === ProgramOfferingStatus.OPEN)).length,
+      programsWithoutActiveCurriculum: programs.filter((program) => program.curriculumVersions.length === 0).length,
+      mappedSections: programRows.reduce((sum, program) => sum + program.mappedSections, 0),
+      topPrograms,
+    };
   }
 
   private async getSectionRelationshipSummary(orgId: string) {

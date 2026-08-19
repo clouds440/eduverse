@@ -43,13 +43,13 @@ export class ReassignmentService {
       const offerings = await this.prisma.cohortOffering.findMany({
         where: { id: { in: offeringIds }, organizationId: orgId },
         include: {
-          programStageOffering: { include: { programOffering: { include: { program: true } } } },
+          programStageOffering: { include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } } },
           sections: { include: { section: { include: { course: true } } } },
         },
       });
       if (offerings.length !== offeringIds.length) throw new NotFoundException('Source or destination cohort offering not found');
       for (const offering of offerings) {
-        departmentIds.push(offering.programStageOffering?.programOffering.program.departmentId ?? null);
+        departmentIds.push(offering.programStageOffering?.programOffering.program.campusConfiguration?.departmentId ?? null);
         departmentIds.push(...offering.sections.map((link) => link.section.course.departmentId));
       }
     }

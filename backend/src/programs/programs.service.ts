@@ -26,7 +26,8 @@ import {
 } from '../common/utils';
 import { normalizeEntityCode } from '../common/entity-code';
 import { runSerializableTransaction } from '../common/prisma-transaction';
-import { isMissingSchemaObjectError } from '../common/prisma-errors';
+import { EducationProvidersService } from '../education-providers/education-providers.service';
+import { ProgramCatalogService } from './program-catalog.service';
 import {
   CreateProgramDto,
   ProgramCourseRequirementInputDto,
@@ -47,7 +48,9 @@ type Actor = DepartmentScopedUser & { id: string };
 type Transaction = Prisma.TransactionClient;
 
 const PROGRAM_DETAIL_INCLUDE = {
-  department: { select: { id: true, name: true, code: true, isActive: true } },
+  campusConfiguration: {
+    include: { department: { select: { id: true, name: true, code: true, isActive: true } } },
+  },
   configurationRevisions: { orderBy: { version: 'desc' as const }, take: 5 },
   curriculumVersions: {
     orderBy: { createdAt: 'desc' as const },
@@ -64,9 +67,9 @@ const PROGRAM_DETAIL_INCLUDE = {
     },
   },
   offerings: {
-    orderBy: { academicCycle: { startDate: 'desc' as const } },
+    orderBy: { campusBinding: { academicCycle: { startDate: 'desc' as const } } },
     include: {
-      academicCycle: true,
+      campusBinding: { include: { academicCycle: true, curriculumVersion: true } },
       stageOfferings: {
         orderBy: { programStage: { sequence: 'asc' as const } },
         include: { programStage: true },
@@ -78,16 +81,24 @@ const PROGRAM_DETAIL_INCLUDE = {
 
 const PROGRAM_LIST_SELECT = {
   id: true,
-  organizationId: true,
-  departmentId: true,
+  providerId: true,
   name: true,
   code: true,
+  slug: true,
+  programType: true,
+  subjectArea: true,
+  educationLevel: true,
+  summary: true,
   description: true,
+  languageCodes: true,
+  credentialType: true,
+  credentialAwarded: true,
+  targetAudience: true,
+  learningOutcomes: true,
+  entryOverview: true,
+  awardingBody: true,
+  accreditationSummary: true,
   status: true,
-  configurationVersion: true,
-  structureType: true,
-  progressionMode: true,
-  completionMode: true,
   durationValue: true,
   durationUnit: true,
   createdAt: true,
@@ -95,7 +106,7 @@ const PROGRAM_LIST_SELECT = {
   archivedAt: true,
   archivedById: true,
   archiveReason: true,
-  department: true,
+  campusConfiguration: { include: { department: true } },
 } satisfies Prisma.ProgramSelect;
 
 @Injectable()
@@ -105,6 +116,8 @@ export class ProgramsService {
     // Retained in the module contract; GPA policy is now selected on the institute cycle.
     private readonly _gpaService: GpaService,
     private readonly activity: OrganizationActivityService,
+    private readonly providers: EducationProvidersService,
+    private readonly catalog: ProgramCatalogService,
   ) {}
 
   private text(value?: string | null) {
@@ -149,25 +162,6 @@ export class ProgramsService {
     if (!department.isActive) throw new ConflictException('Programs cannot be assigned to an inactive department');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
     assertDepartmentInScope(scope, departmentId, 'You cannot manage programs outside your assigned departments');
-  }
-
-  private async assertUnique(orgId: string, nameValue: string, codeValue: string, excludeId?: string) {
-    const name = nameValue.trim();
-    const code = normalizeEntityCode(codeValue)!;
-    const duplicate = await this.prisma.program.findFirst({
-      where: {
-        organizationId: orgId,
-        id: excludeId ? { not: excludeId } : undefined,
-        OR: [
-          { name: { equals: name, mode: Prisma.QueryMode.insensitive } },
-          { code: { equals: code, mode: Prisma.QueryMode.insensitive } },
-        ],
-      },
-      select: { name: true },
-    });
-    if (!duplicate) return;
-    if (duplicate.name.toLowerCase() === name.toLowerCase()) throw new ConflictException('Program name already exists');
-    throw new ConflictException('Program code already exists');
   }
 
   private validateStages(stages: ProgramStageInputDto[]) {
@@ -289,34 +283,36 @@ export class ProgramsService {
   }
 
   private async scopedProgram(orgId: string, id: string, actor: Actor) {
-    const program = await this.prisma.program.findFirst({ where: { id, organizationId: orgId } });
+    const program = await this.prisma.program.findFirst({
+      where: { id, campusConfiguration: { organizationId: orgId } },
+      include: { campusConfiguration: true },
+    });
     if (!program) throw new NotFoundException('Program not found');
+    if (!program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, program.departmentId);
+    assertDepartmentInScope(scope, program.campusConfiguration.departmentId);
     return program;
   }
 
   async create(orgId: string, dto: CreateProgramDto, actor: Actor) {
-    await this.assertDepartment(orgId, dto.departmentId, actor);
-    await this.assertUnique(orgId, dto.name, dto.code);
+    await this.assertDepartment(orgId, dto.campusConfiguration.departmentId, actor);
+    const providerId = await this.providers.providerIdForOrganization(orgId);
     const program = await this.runSerializable(async (tx) => {
+      await this.catalog.assertUnique(tx, providerId, dto);
       const created = await tx.program.create({
         data: {
-          organizationId: orgId,
-          departmentId: dto.departmentId,
-          name: dto.name.trim(),
-          code: normalizeEntityCode(dto.code)!,
-          description: this.text(dto.description),
-          structureType: dto.structureType,
-          progressionMode: dto.progressionMode,
-          completionMode: dto.completionMode,
-          minimumPassingPercentage: dto.minimumPassingPercentage ?? 50,
-          minimumAttendancePercentage: dto.minimumAttendancePercentage,
-          durationValue: dto.durationValue,
-          durationUnit: dto.durationUnit,
-          isVisibleForAdmissions: dto.isVisibleForAdmissions ?? false,
-          admissionsLabel: this.text(dto.admissionsLabel),
-          admissionsDescription: this.text(dto.admissionsDescription),
+          ...this.catalog.createData(providerId, dto),
+          campusConfiguration: {
+            create: {
+              organizationId: orgId,
+              departmentId: dto.campusConfiguration.departmentId,
+              structureType: dto.campusConfiguration.structureType,
+              progressionMode: dto.campusConfiguration.progressionMode,
+              completionMode: dto.campusConfiguration.completionMode,
+              minimumPassingPercentage: dto.campusConfiguration.minimumPassingPercentage ?? 50,
+              minimumAttendancePercentage: dto.campusConfiguration.minimumAttendancePercentage,
+            },
+          },
         },
       });
       await this.createStructure(tx, orgId, created.id, 1, actor.id, {
@@ -340,8 +336,10 @@ export class ProgramsService {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions(options);
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
     const where: Prisma.ProgramWhereInput = {
-      organizationId: orgId,
-      departmentId: options.departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
+      campusConfiguration: {
+        organizationId: orgId,
+        departmentId: options.departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
+      },
       status: options.status,
       OR: options.search
         ? [
@@ -350,59 +348,20 @@ export class ProgramsService {
           ]
         : undefined,
     };
-    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
-    if (!hasProgramRollout) {
-      const [data, total] = await Promise.all([
-        this.prisma.program.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
-          select: PROGRAM_LIST_SELECT,
-        }),
-        this.prisma.program.count({ where }),
-      ]);
-      return formatPaginatedResponse(
-        data.map((program) => ({ ...program, minimumPassingPercentage: 50, _count: { curriculumVersions: 0, offerings: 0, studentEnrollments: 0 } })),
-        total,
-        options.page || 1,
-        options.limit || 20,
-      );
-    }
-    try {
-      const [data, total] = await Promise.all([
-        this.prisma.program.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
-          select: {
-            ...PROGRAM_LIST_SELECT,
-            _count: { select: { curriculumVersions: true, offerings: true, studentEnrollments: true } },
-          },
-        }),
-        this.prisma.program.count({ where }),
-      ]);
-      return formatPaginatedResponse(data, total, options.page || 1, options.limit || 20);
-    } catch (error) {
-      if (!isMissingSchemaObjectError(error)) throw error;
-      const [data, total] = await Promise.all([
-        this.prisma.program.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
-          select: PROGRAM_LIST_SELECT,
-        }),
-        this.prisma.program.count({ where }),
-      ]);
-      return formatPaginatedResponse(
-        data.map((program) => ({ ...program, minimumPassingPercentage: 50, _count: { curriculumVersions: 0, offerings: 0, studentEnrollments: 0 } })),
-        total,
-        options.page || 1,
-        options.limit || 20,
-      );
-    }
+    const [data, total] = await Promise.all([
+      this.prisma.program.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+        select: {
+          ...PROGRAM_LIST_SELECT,
+          _count: { select: { curriculumVersions: true, offerings: true, studentEnrollments: true } },
+        },
+      }),
+      this.prisma.program.count({ where }),
+    ]);
+    return formatPaginatedResponse(data, total, options.page || 1, options.limit || 20);
   }
 
   async get(orgId: string, id: string, actor: Actor) {
@@ -442,35 +401,44 @@ export class ProgramsService {
       where: {
         organizationId: orgId,
         programOffering: {
-          academicCycleId,
+          campusBinding: { academicCycleId, organizationId: orgId },
           program: {
-            departmentId: departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
+            campusConfiguration: {
+              departmentId: departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
+            },
           },
         },
       },
       orderBy: [{ programOffering: { program: { name: 'asc' } } }, { programStage: { sequence: 'asc' } }],
       include: {
         programStage: { include: { courseRequirements: { include: { course: true } } } },
-        programOffering: { include: { program: { include: { department: true } }, academicCycle: true } },
+        programOffering: {
+          include: { program: { include: { campusConfiguration: { include: { department: true } } } }, campusBinding: { include: { academicCycle: true } } },
+        },
       },
     });
   }
 
   async update(orgId: string, id: string, dto: UpdateProgramDto, actor: Actor) {
     const current = await this.scopedProgram(orgId, id, actor);
-    const nextDepartmentId = dto.departmentId ?? current.departmentId;
+    const nextDepartmentId = dto.campusConfiguration?.departmentId ?? current.campusConfiguration!.departmentId;
     await this.assertDepartment(orgId, nextDepartmentId, actor);
-    if (dto.name || dto.code) await this.assertUnique(orgId, dto.name ?? current.name, dto.code ?? current.code, id);
-    const program = await this.prisma.program.update({
-      where: { id },
-      data: {
-        ...dto,
-        name: dto.name?.trim(),
-        code: dto.code ? normalizeEntityCode(dto.code)! : undefined,
-        description: dto.description === undefined ? undefined : this.text(dto.description),
-        admissionsLabel: dto.admissionsLabel === undefined ? undefined : this.text(dto.admissionsLabel),
-        admissionsDescription: dto.admissionsDescription === undefined ? undefined : this.text(dto.admissionsDescription),
-      },
+    if (dto.name || dto.code || dto.slug) {
+      await this.catalog.assertUnique(this.prisma, current.providerId, {
+        name: dto.name ?? current.name,
+        code: dto.code ?? current.code,
+        slug: dto.slug ?? current.slug,
+      }, id);
+    }
+    const program = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.program.update({ where: { id }, data: this.catalog.updateData(dto) });
+      if (dto.campusConfiguration) {
+        await tx.campusProgramConfiguration.update({
+          where: { programId: id },
+          data: dto.campusConfiguration,
+        });
+      }
+      return updated;
     });
     await this.log(orgId, actor.id, 'program_updated', program);
     return this.get(orgId, id, actor);
@@ -478,13 +446,13 @@ export class ProgramsService {
 
   async replaceStructure(orgId: string, id: string, dto: ReplaceProgramStructureDto, actor: Actor) {
     const current = await this.scopedProgram(orgId, id, actor);
-    if (current.configurationVersion !== dto.configurationVersion) {
+    if (current.campusConfiguration!.configurationVersion !== dto.configurationVersion) {
       throw new ConflictException('Program configuration changed; refresh and try again');
     }
     if (dto.metadata) await this.update(orgId, id, dto.metadata, actor);
     await this.runSerializable(async (tx) => {
-      const updated = await tx.program.updateMany({
-        where: { id, organizationId: orgId, configurationVersion: dto.configurationVersion },
+      const updated = await tx.campusProgramConfiguration.updateMany({
+        where: { programId: id, organizationId: orgId, configurationVersion: dto.configurationVersion },
         data: { configurationVersion: { increment: 1 } },
       });
       if (updated.count !== 1) throw new ConflictException('Program configuration changed; refresh and try again');
@@ -548,7 +516,9 @@ export class ProgramsService {
     const curriculum = await this.prisma.curriculumVersion.findFirst({ where: { id, organizationId: orgId }, include: { program: true } });
     if (!curriculum) throw new NotFoundException('Curriculum not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, curriculum.program.departmentId);
+    const configuration = await this.prisma.campusProgramConfiguration.findUnique({ where: { programId: curriculum.programId } });
+    if (!configuration) throw new NotFoundException('Campus program configuration not found');
+    assertDepartmentInScope(scope, configuration.departmentId);
     if (curriculum.status !== CurriculumStatus.DRAFT) throw new ConflictException('Only draft curricula can be edited');
     return curriculum;
   }
@@ -556,7 +526,7 @@ export class ProgramsService {
   async createCurriculum(orgId: string, programId: string, dto: CreateCurriculumDto, actor: Actor) {
     const program = await this.scopedProgram(orgId, programId, actor);
     const revision = await this.prisma.programConfigurationRevision.findUnique({
-      where: { programId_version: { programId, version: program.configurationVersion } },
+      where: { programId_version: { programId, version: program.campusConfiguration!.configurationVersion } },
     });
     if (!revision) throw new ConflictException('Current program configuration revision is missing');
     return this.prisma.curriculumVersion.create({
@@ -592,11 +562,15 @@ export class ProgramsService {
   ) {
     const curriculum = await this.prisma.curriculumVersion.findFirst({
       where: { id, organizationId: orgId },
-      include: { program: true, stages: { include: { _count: { select: { courseRequirements: true } } } } },
+      include: {
+        program: { include: { campusConfiguration: true } },
+        stages: { include: { _count: { select: { courseRequirements: true } } } },
+      },
     });
     if (!curriculum) throw new NotFoundException('Curriculum not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, curriculum.program.departmentId);
+    if (!curriculum.program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+    assertDepartmentInScope(scope, curriculum.program.campusConfiguration.departmentId);
     if (status === CurriculumStatus.ACTIVE && curriculum.stages.length === 0) throw new ConflictException('A curriculum needs at least one stage');
     if (status === CurriculumStatus.ACTIVE && curriculum.stages.some((stage) => !stage.isOptional && stage._count.courseRequirements === 0)) {
       throw new ConflictException('Every required stage needs at least one course requirement');
@@ -637,11 +611,12 @@ export class ProgramsService {
   private async editableStage(orgId: string, id: string, actor: Actor) {
     const stage = await this.prisma.programStage.findFirst({
       where: { id, organizationId: orgId },
-      include: { curriculumVersion: { include: { program: true } } },
+      include: { curriculumVersion: { include: { program: { include: { campusConfiguration: true } } } } },
     });
     if (!stage) throw new NotFoundException('Program stage not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, stage.curriculumVersion.program.departmentId);
+    if (!stage.curriculumVersion.program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+    assertDepartmentInScope(scope, stage.curriculumVersion.program.campusConfiguration.departmentId);
     if (stage.curriculumVersion.status !== CurriculumStatus.DRAFT) throw new ConflictException('Only draft curricula can be edited');
     return stage;
   }

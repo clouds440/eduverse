@@ -21,12 +21,20 @@ export default function OnlineAdmissionDocumentUpdatePage() {
         ['online-admission-update', token],
         () => api.publicOnlineAdmissions.getUpdateSubmission(token),
     );
-    const [documents, setDocuments] = useState<Record<string, File | null>>({});
+    const [documents, setDocuments] = useState<Record<string, File[]>>({});
+    const [documentExpiryDates, setDocumentExpiryDates] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [success, setSuccess] = useState(false);
     const uploadedRequirementIds = useMemo(() => new Set((data?.documentUploads || []).map((upload) => upload.requirementId)), [data?.documentUploads]);
-    const missingRequired = useMemo(() => (data?.documentRequirements || []).filter((requirement) => requirement.isRequired && !uploadedRequirementIds.has(requirement.id)), [data?.documentRequirements, uploadedRequirementIds]);
+    const uploadedRequestIds = useMemo(() => new Set((data?.documentUploads || []).map((upload) => upload.additionalDocumentRequestId)), [data?.documentUploads]);
+    const activeRequests = useMemo(() => (data?.additionalDocumentRequests || []).filter((request) => request.status === 'REQUESTED'), [data?.additionalDocumentRequests]);
+    const uploadPolicies = useMemo(() => [
+        ...(data?.documentRequirements || []),
+        ...activeRequests.map((request) => ({ ...request, isRequired: true, sortOrder: 0 })),
+    ], [activeRequests, data?.documentRequirements]);
+    const missingRequired = useMemo(() => uploadPolicies.filter((requirement) => requirement.isRequired
+        && !(uploadedRequirementIds.has(requirement.id) || uploadedRequestIds.has(requirement.id))), [uploadPolicies, uploadedRequirementIds, uploadedRequestIds]);
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -34,8 +42,9 @@ export default function OnlineAdmissionDocumentUpdatePage() {
         setSuccess(false);
         setIsSubmitting(true);
         try {
-            const updated = await api.publicOnlineAdmissions.uploadUpdateDocuments(token, documents);
+            const updated = await api.publicOnlineAdmissions.uploadUpdateDocuments(token, documents, documentExpiryDates);
             setDocuments({});
+            setDocumentExpiryDates({});
             setSuccess(true);
             await mutate(updated, { revalidate: false });
         } catch (err) {
@@ -66,7 +75,7 @@ export default function OnlineAdmissionDocumentUpdatePage() {
                                 <Badge variant={missingRequired.length ? 'warning' : 'success'}>{missingRequired.length ? `${missingRequired.length} missing` : 'Documents complete'}</Badge>
                             </div>
                             <h1 className="mt-3 text-3xl font-black tracking-tight">Update Documents</h1>
-                            <p className="mt-1 text-sm font-semibold text-muted-foreground">{data.organization.name} - {data.program.code} {data.program.name}</p>
+                            <p className="mt-1 text-sm font-semibold text-muted-foreground">{data.organization?.name || data.provider?.displayName || 'Education provider'} - {data.program.code} {data.program.name}</p>
                         </header>
 
                         {success && <StatusBanner title="Documents uploaded" description="Your application has been returned to the admissions queue." variant="success" />}
@@ -93,6 +102,16 @@ export default function OnlineAdmissionDocumentUpdatePage() {
                                         </div>
                                     );
                                 })}
+                                {activeRequests.map((request) => {
+                                    const upload = data.documentUploads.find((item) => item.additionalDocumentRequestId === request.id);
+                                    return <div key={request.id} className="rounded-md border border-warning/50 bg-warning/10 p-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div><p className="text-sm font-black">{request.label} *</p>{request.description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{request.description}</p>}</div>
+                                            {upload ? <CheckCircle2 className="h-5 w-5 shrink-0 text-success" /> : <Badge variant="warning" size="sm">Requested</Badge>}
+                                        </div>
+                                        {request.dueAt && <p className="mt-2 text-xs font-bold text-muted-foreground">Due {new Date(request.dueAt).toLocaleDateString()}</p>}
+                                    </div>;
+                                })}
                             </div>
                         </section>
 
@@ -102,16 +121,18 @@ export default function OnlineAdmissionDocumentUpdatePage() {
                                 <h2 className="text-base font-black">Upload files</h2>
                             </div>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                {data.documentRequirements.map((requirement) => (
+                                {uploadPolicies.map((requirement) => (
                                     <label key={requirement.id} className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3 text-sm font-bold">
                                         <span>{requirement.label}{requirement.isRequired ? ' *' : ''}</span>
                                         <input
                                             type="file"
-                                            required={requirement.isRequired && !uploadedRequirementIds.has(requirement.id)}
-                                            accept={requirement.acceptedMimeTypes?.join(',') || undefined}
-                                            onChange={(event) => setDocuments((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))}
+                                            required={requirement.isRequired && !(uploadedRequirementIds.has(requirement.id) || uploadedRequestIds.has(requirement.id))}
+                                            multiple={requirement.maxFileCount > 1}
+                                            accept={[...requirement.acceptedMimeTypes, ...requirement.acceptedExtensions].join(',') || undefined}
+                                            onChange={(event) => setDocuments((current) => ({ ...current, [requirement.id]: Array.from(event.target.files || []).slice(0, requirement.maxFileCount) }))}
                                             className="block w-full text-sm font-semibold text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-bold file:text-primary-foreground"
                                         />
+                                        {requirement.requiresExpiryDate && <input type="date" required value={documentExpiryDates[requirement.id] || ''} onChange={(event) => setDocumentExpiryDates((current) => ({ ...current, [requirement.id]: event.target.value }))} className="block h-10 w-full rounded-md border border-border bg-background px-3 text-sm" />}
                                     </label>
                                 ))}
                             </div>

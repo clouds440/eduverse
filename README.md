@@ -1,6 +1,6 @@
 # EduVerse - Technical Design Document
 
-**Version:** 3.1.0
+**Version:** 3.2.0
 **Document Revision Date:** August 19, 2026
 **Repository:** `clouds440/eduverse`  
 **Document Type:** Technical Design Document (TDD)
@@ -77,7 +77,7 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 - Password strength, password reset, sessions, and audit logging.
 - Optional email-code and trusted-device two-factor authentication.
 - Linked Google sign-in, verified contact emails, and preference-aware login alerts.
-- Public online admissions with program discovery, required-document uploads, email updates, department-scoped review, rejection retention, and student conversion.
+- Provider-neutral public online admissions with offering-first discovery, rich fee/funding/eligibility disclosure, versioned application forms, required-document uploads, email updates, review queues, rejection retention, provider acceptance, and Campus student conversion where applicable.
 - Self-hosted Cap proof-of-work verification for organization registration, suspicious sign-in, and public admission submission.
 
 ---
@@ -502,16 +502,16 @@ Rules:
 
 ### Programs and Curricula
 
-`Program` is a hard-defined, department-owned qualification or major. Its curriculum exists independently from institute academic cycles.
+`Program` is a provider-owned educational product. In Campus it can be a department-owned qualification or major; for Discover-style providers it can also represent a course, diploma, certificate, workshop, or training product without requiring a Campus organization account.
 
 Core program fields:
 
-- organization and owning department
+- education provider and optional Campus organization/owning department
 - unique organization code and display metadata
 - lifecycle: `DRAFT`, `ACTIVE`, `PAUSED`, `TEACH_OUT`, `ARCHIVED`
 - structure, progression, and completion modes
 - ordered stable curriculum stages
-- admissions visibility, label, description, duration, and sort order
+- admissions visibility, label, description, duration, search metadata, and sort order
 - monotonic `configurationVersion`
 
 Program structure:
@@ -569,17 +569,18 @@ Key invariants:
 
 ### Online Admissions
 
-`OnlineAdmissionSubmission` keeps public applications separate from admitted student accounts until an authorized administrator completes conversion.
+`OnlineAdmissionSubmission` keeps public applications separate from admitted student accounts. Provider-only applications can be accepted without a Campus student record; Campus-backed applications can later be converted into students by an authorized administrator.
 
 Key records and rules:
 
-- Organization settings explicitly enable or disable public admissions and store applicant email templates.
-- `ProgramOffering.onlineAdmissionEnabled` controls whether one active offering accepts public applications.
-- `OnlineAdmissionDocumentRequirement` defines labeled required or optional uploads, accepted file types, ordering, and size limits for that offering.
-- A submission snapshots applicant form data, program, department, offering, cycle, contact email, status history, and uploaded-document labels.
+- Education providers own programs, offerings, locations, forms, submissions, and documents. A Campus organization is optional provider metadata.
+- Organization settings explicitly enable or disable public admissions and store applicant email templates for Campus-backed offerings.
+- Admissions Setup configures offering summary, delivery, dates, locations, fees, funding, eligibility, form selection, and publish/open/close readiness.
+- `AdmissionApplicationTemplateVersion` and `AdmissionDocumentRequirement` define versioned applicant fields and required or optional uploads.
+- A submission snapshots applicant answers, form definition, document requirements, consent version, provider, optional Campus department/offering/cycle context, status history, and uploaded-document labels.
 - Applicants do not need an account. Expiring email links allow requested document updates without exposing internal records.
-- Review is organization- and department-scoped. Rejected and withdrawn records remain auditable instead of being deleted.
-- Student conversion preloads the normal admission form, permits an administrator to correct data and choose the final login email, and links the admitted student atomically.
+- Review is provider-scoped; Campus-backed review additionally applies organization and department scope. Rejected and withdrawn records remain auditable instead of being deleted.
+- Student conversion preloads the normal admission form only for Campus-backed applications, permits an administrator to correct data and choose the final login email, and links the admitted student atomically.
 - Public submission, organization registration, and suspicious login use separate, single-use Cap CAPTCHA token scopes.
 
 ### Academic Cycle Archives and Past Records
@@ -754,21 +755,28 @@ Admission and transfer commands snapshot the active curriculum and program confi
 
 ### Program Offerings and Online Admissions
 
-`ProgramOfferingsModule` manages cycle-specific program delivery, online-admission availability, instructions, and document requirements. `OnlineAdmissionsModule` owns public discovery and submission, applicant update links, department-scoped review, status transitions, export, protected document downloads, and final student linkage.
+`ProgramOfferingsModule` manages provider-owned offerings, optional Campus cycle delivery, locations, lifecycle readiness, fees, funding, and eligibility disclosure. `AdmissionFormsModule` owns versioned application forms and document requirements. `OnlineAdmissionsModule` owns provider-neutral public discovery and submission, applicant update links, Campus department-scoped review, provider acceptance, status transitions, export, protected document downloads, and final Campus student linkage where applicable.
 
 Selected routes:
 
-- `GET /public/online-admissions/organizations`
-- `GET /public/online-admissions/organizations/:slug`
-- `GET /public/online-admissions/offerings/:id`
-- `POST /public/online-admissions/offerings/:id/submissions`
-- `GET|PATCH /public/online-admissions/submissions/update/:token`
+- `GET /v1/public/admissions/offerings`
+- `GET /v1/public/admissions/offerings/:id`
+- `GET /v1/public/admissions/providers/:slug`
+- `POST /v1/public/admissions/offerings/:id/submissions`
+- `GET|POST /v1/public/admissions/submissions/update/:token[/documents]`
+- Legacy compatibility routes remain under `/public/online-admissions/*` for the current Campus frontend, but new public surfaces should use `/v1/public/admissions/*`.
+- `GET /org/admission-forms`
+- `POST /org/admission-forms`
+- `POST /org/admission-forms/:id/versions`
+- `PUT|PATCH /org/admission-forms/versions/:id`
+- `PUT /org/admission-forms/offerings/:offeringId`
+- `GET /org/program-offerings/:id/readiness`
 - `GET /org/online-admissions` and `/org/online-admissions/:id`
 - `PATCH /org/online-admissions/:id/status|admit`
 - `GET /org/online-admissions/export.csv`
-- document requirement routes under `/org/program-offerings/:id/online-admission-requirements`
+- `POST /org/online-admissions/:id/document-requests`
 
-Public responses use applicant-safe projections and never expose internal template configuration, storage identifiers, source IP fingerprints, or reviewer-only state.
+Public responses use applicant-safe projections and never expose internal template configuration, storage identifiers, source IP fingerprints, reviewer-only state, or organization email templates. Canonical public application links use `/admissions/apply/:offeringId`; organization/provider pages are browsing aids rather than ownership assumptions.
 
 ### Academic Cycle Archives and Past Records
 

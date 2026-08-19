@@ -902,7 +902,7 @@ export const docsPages: DocPage[] = [
   {
     slug: 'programs',
     title: 'Programs and Student Majors',
-    description: 'Create department-owned offerings, relate shared institute cycles, build curricula, map delivery, and preserve student majors.',
+    description: 'Create provider-owned programs, optionally attach Campus curriculum, relate shared institute cycles for delivery, and preserve student majors.',
     category: 'Academic Settings',
     tags: ['programs', 'majors', 'curriculum', 'stages', 'academic cycles', 'admissions', 'department scope'],
     related: ['online-admissions', 'academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'past-records', 'csv-imports'],
@@ -914,12 +914,13 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'A program is a department-owned qualification or major. An academic cycle is an institute-wide time period. They remain independent until a Program Offering connects a curriculum to a shared cycle for actual delivery.',
+            text: 'A program is a provider-owned educational product. In Campus it can be a department-owned qualification or major; in Discover-style contexts it can also be a course, diploma, certificate, workshop, or training product without requiring a Campus organization account. Academic cycles remain independent until a Campus Program Offering connects a curriculum to a shared cycle for actual delivery.',
           },
           {
             type: 'list',
             items: [
               'One department can own many programs.',
+              'One education provider can own many programs and offerings, whether or not it has a Campus organization account.',
               'One program can have many offerings across institute academic cycles.',
               'One academic cycle can host many programs, several stages of the same program, and standalone courses.',
               'The curriculum stage sequence defines progression; it is not a list of calendar periods.',
@@ -1169,7 +1170,7 @@ export const docsPages: DocPage[] = [
   {
     slug: 'online-admissions',
     title: 'Online Admissions',
-    description: 'Publish program offerings, collect applicant details and documents, review submissions by department, and convert accepted applicants into students.',
+    description: 'Publish provider-owned offerings, collect applicant details and documents, review submissions, accept provider applicants, and convert Campus-backed accepted applicants into students.',
     category: 'Academics',
     tags: ['online admissions', 'applications', 'applicants', 'documents', 'program offerings', 'student admission', 'captcha'],
     related: ['programs', 'students', 'roles-permissions', 'settings', 'files-attachments'],
@@ -1181,12 +1182,12 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Online Admissions lets an approved organization publish selected program offerings on the public admissions portal. Applicants do not create an account. They submit contact and student details, complete human verification, and upload the documents configured for that offering.',
+            text: 'Online Admissions lets an active education provider publish selected offerings on a provider-neutral public admissions portal. Campus-backed offerings still require an approved organization with public admissions enabled. Applicants do not create an account. They submit contact and application details, complete human verification, and upload the documents configured in the published admission form version.',
           },
           {
             type: 'flow',
             title: 'Application lifecycle',
-            steps: ['Publish offering', 'Applicant submits', 'Department review', 'Request updates or decide', 'Create student', 'Mark admitted'],
+            steps: ['Configure Admissions Setup', 'Publish or open offering', 'Applicant submits', 'Review application', 'Request updates or decide', 'Accept provider applicant or convert Campus student'],
           },
           {
             type: 'note',
@@ -1203,21 +1204,23 @@ export const docsPages: DocPage[] = [
           {
             type: 'steps',
             items: [
-              'As Org Admin, open Settings and enable Online Admissions for the organization.',
+              'For Campus-backed offerings, open Settings and enable Online Admissions for the organization.',
               'Review the submission and status email templates used for applicant updates.',
-              'Open Programs and choose the program offering for the intended academic cycle.',
-              'Confirm the program, curriculum, department, academic cycle, and offering are active and ready.',
-              'Enable online admission for the offering and add concise applicant instructions.',
-              'Review the public admissions page before sharing it.',
+              'Open Admissions Setup and select the offering.',
+              'Configure public summary, delivery, dates, locations, fees, funding, eligibility, and a published admission form.',
+              'Confirm readiness, then publish or open the offering.',
+              'Review `/admissions` and the provider page before sharing a public link.',
             ],
           },
           {
             type: 'checklist',
             items: [
-              'Organization is approved and public admissions are enabled.',
-              'Program and department are active and visible for admissions.',
+              'Provider is active.',
+              'Campus organization is approved and public admissions are enabled when the offering is Campus-backed.',
+              'Program and optional Campus department are active and visible for admissions.',
               'Offering is open and inside its configured opening and closing dates.',
-              'Default admissions curriculum is active and complete.',
+              'Campus curriculum and academic cycle are active and complete when the offering is Campus-backed.',
+              'Fees and eligibility are disclosed, even when the amount is zero or admission is open.',
               'Applicant email delivery and document storage are configured.',
             ],
           },
@@ -1230,7 +1233,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Each online-enabled offering owns its own document checklist. Every requirement has a student-facing label and can include a description, required flag, accepted file types, size limit, and display order.',
+            text: 'Each published admission form version owns its document checklist. Every requirement has a student-facing label and can include a description, required flag, accepted file types, size limit, expiry-date rule, file-count limit, and display order.',
           },
           {
             type: 'list',
@@ -1238,7 +1241,28 @@ export const docsPages: DocPage[] = [
               'Use labels applicants can recognize, such as Previous transcript or Identity document.',
               'Mark only genuinely mandatory files as required.',
               'Keep accepted file types and size limits practical for mobile applicants.',
-              'Review the checklist before the first submission. Requirements are locked after applications exist so an applicant record cannot silently change later.',
+              'Publish a new form version when the checklist changes. Existing submissions keep their original document snapshot.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'public-admissions-api',
+        title: 'Provider-neutral public API',
+        tags: ['api', 'public portal', 'discover'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'New public admissions clients should use the versioned `/v1/public/admissions` routes. These routes are offering-first and do not require an organization slug. Legacy organization routes remain available for Campus provider pages.',
+          },
+          {
+            type: 'list',
+            items: [
+              '`GET /v1/public/admissions/offerings` lists open offerings with provider, program, delivery, location, deadline, fees, funding, eligibility, and form metadata.',
+              '`GET /v1/public/admissions/offerings/:id` returns the full applicant-safe offering detail and published application form.',
+              '`GET /v1/public/admissions/providers/:slug` returns one provider and its open offerings.',
+              '`POST /v1/public/admissions/offerings/:id/submissions` accepts no-login applicant answers, Cap verification, and required documents.',
+              '`GET|POST /v1/public/admissions/submissions/update/:token[/documents]` supports secure document update links sent by email.',
             ],
           },
         ],

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { ArrowLeft, CheckCircle2, FileText, Mail, RefreshCcw, UserPlus, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, FileText, Mail, Plus, RefreshCcw, UserPlus, XCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { OnlineAdmissionSubmissionStatus, Role, type BadgeVariant, type OnlineAdmissionSubmission } from '@/types';
@@ -18,6 +18,8 @@ import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Textarea } from '@/components/ui/Textarea';
 import { AttachmentPreviewCard, getAttachmentPreviewKind } from '@/components/ui/AttachmentPreviewCard';
+import { AdmissionFormRenderer } from '@/components/admissions/AdmissionFormRenderer';
+import { Input } from '@/components/ui/Input';
 
 const statusConfig: Record<OnlineAdmissionSubmissionStatus, { label: string; variant: BadgeVariant }> = {
     SUBMITTED: { label: 'Submitted', variant: 'primary' },
@@ -64,6 +66,9 @@ export default function OnlineAdmissionDetailPage() {
     const [actionError, setActionError] = useState('');
     const [pendingStatus, setPendingStatus] = useState<OnlineAdmissionSubmissionStatus | null>(null);
     const [isAdmitConfirmOpen, setIsAdmitConfirmOpen] = useState(false);
+    const [requestLabel, setRequestLabel] = useState('');
+    const [requestDescription, setRequestDescription] = useState('');
+    const [requestDueAt, setRequestDueAt] = useState('');
     const terminal = data?.status === OnlineAdmissionSubmissionStatus.ADMITTED || data?.status === OnlineAdmissionSubmissionStatus.REJECTED;
     const canDecide = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
@@ -82,6 +87,17 @@ export default function OnlineAdmissionDetailPage() {
         }
     };
     const pendingDecision = decisions.find((decision) => decision.status === pendingStatus);
+
+    const requestDocument = async () => {
+        if (!token || !data || !requestLabel.trim()) return;
+        setActionError('');
+        try {
+            const base = requestLabel.trim().replace(/[^a-zA-Z0-9]+/g, ' ').trim().split(/\s+/).map((part, index) => index ? `${part[0]?.toUpperCase()}${part.slice(1)}` : part.toLowerCase()).join('');
+            await api.onlineAdmissions.requestDocument(data.id, { key: `${base || 'document'}${Date.now().toString().slice(-6)}`, label: requestLabel.trim(), description: requestDescription.trim() || undefined, dueAt: requestDueAt || undefined }, token);
+            setRequestLabel(''); setRequestDescription(''); setRequestDueAt('');
+            await mutate();
+        } catch (cause) { setActionError(cause instanceof Error ? cause.message : 'Could not request document'); }
+    };
 
     return (
         <PageShell className="overflow-y-auto custom-scrollbar">
@@ -128,19 +144,15 @@ export default function OnlineAdmissionDetailPage() {
 
                         <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
                             <h2 className="text-base font-black">Submitted form</h2>
-                            <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                {Object.entries(data.formData || {}).map(([key, value]) => (
-                                    <FieldValue key={key} label={key.replace(/([A-Z])/g, ' $1')} value={value} />
-                                ))}
-                            </div>
+                            <div className="mt-4"><AdmissionFormRenderer definition={data.formDefinitionSnapshot} answers={data.formData || {}} disabled /></div>
                         </section>
 
                         <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
                             <h2 className="text-base font-black">Documents</h2>
-                            {data.programOffering?.onlineAdmissionDocumentRequirements?.length ? (
+                            {data.documentRequirementsSnapshot?.length ? (
                                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    {data.programOffering.onlineAdmissionDocumentRequirements.map((requirement) => {
-                                        const upload = data.documentUploads?.find((item) => item.requirementId === requirement.id);
+                                    {data.documentRequirementsSnapshot.map((requirement) => {
+                                        const uploads = data.documentUploads?.filter((item) => item.requirementId === requirement.id) || [];
                                         return (
                                             <div key={requirement.id} className="rounded-md border border-border/70 bg-muted/20 p-3">
                                                 <div className="mb-2 flex items-start justify-between gap-2">
@@ -148,10 +160,11 @@ export default function OnlineAdmissionDetailPage() {
                                                         <p className="text-sm font-black">{requirement.label}{requirement.isRequired ? ' *' : ''}</p>
                                                         {requirement.description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{requirement.description}</p>}
                                                     </div>
-                                                    <Badge variant={upload ? 'success' : requirement.isRequired ? 'warning' : 'neutral'} size="sm">{upload ? 'Uploaded' : 'Missing'}</Badge>
+                                                    <Badge variant={uploads.length ? 'success' : requirement.isRequired ? 'warning' : 'neutral'} size="sm">{uploads.length ? `${uploads.length} uploaded` : 'Missing'}</Badge>
                                                 </div>
-                                                {upload?.file ? (
+                                                {uploads.length ? <div className="space-y-2">{uploads.map((upload) => (
                                                     <AttachmentPreviewCard
+                                                        key={upload.id}
                                                         fileName={upload.file.filename}
                                                         href={`/org/online-admissions/${data.id}/documents/${upload.file.id}/download`}
                                                         kind={getAttachmentPreviewKind(upload.file.mimeType, upload.file.filename)}
@@ -159,7 +172,7 @@ export default function OnlineAdmissionDetailPage() {
                                                         compact
                                                         compactDownload
                                                     />
-                                                ) : (
+                                                ))}</div> : (
                                                     <p className="text-xs font-semibold text-muted-foreground">No file uploaded for this requirement.</p>
                                                 )}
                                             </div>
@@ -169,6 +182,13 @@ export default function OnlineAdmissionDetailPage() {
                             ) : (
                                 <p className="mt-2 text-sm font-semibold text-muted-foreground">No document requirements are configured for this offering.</p>
                             )}
+                            {(data.additionalDocumentRequests || []).length > 0 && <div className="mt-4 space-y-2 border-t border-border/70 pt-4">{data.additionalDocumentRequests?.map((request) => <div key={request.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/70 bg-muted/20 p-3"><div><p className="text-sm font-black">{request.label}</p><p className="text-xs font-semibold text-muted-foreground">{request.description || 'Additional document request'}{request.dueAt ? ` - due ${new Date(request.dueAt).toLocaleDateString()}` : ''}</p></div><Badge variant={request.status === 'SUBMITTED' || request.status === 'ACCEPTED' ? 'success' : 'warning'} size="sm">{request.status}</Badge></div>)}</div>}
+                            {canDecide && !terminal && <div className="mt-4 grid gap-2 border-t border-border/70 pt-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_10rem_auto]">
+                                <Input value={requestLabel} onChange={(event) => setRequestLabel(event.target.value)} placeholder="Document label" />
+                                <Input value={requestDescription} onChange={(event) => setRequestDescription(event.target.value)} placeholder="Instructions" />
+                                <Input type="date" value={requestDueAt} onChange={(event) => setRequestDueAt(event.target.value)} />
+                                <Button icon={Plus} variant="secondary" disabled={!requestLabel.trim()} onClick={requestDocument}>Request</Button>
+                            </div>}
                         </section>
 
                         <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">

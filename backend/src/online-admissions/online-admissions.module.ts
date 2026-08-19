@@ -7,20 +7,23 @@ import { FilesModule } from '../files/files.module';
 import { DEFAULT_MAX_SIZE_BYTES } from '../files/file-upload-policy';
 import { OnlineAdmissionsService } from './online-admissions.service';
 import { PublicOnlineAdmissionsController } from './public-online-admissions.controller';
+import { V1PublicAdmissionsController } from './v1-public-admissions.controller';
 import { AdminOnlineAdmissionsController } from './admin-online-admissions.controller';
 import { ParseOnlineAdmissionSubmissionPipe } from './pipes/parse-online-admission-submission.pipe';
+import { EducationProvidersModule } from '../education-providers/education-providers.module';
 
 @Module({
   imports: [
     PrismaModule,
     SecurityModule,
     FilesModule,
+    EducationProvidersModule,
     MulterModule.register({
       storage: memoryStorage(),
       limits: { fileSize: DEFAULT_MAX_SIZE_BYTES, files: 20 },
     }),
   ],
-  controllers: [PublicOnlineAdmissionsController, AdminOnlineAdmissionsController],
+  controllers: [PublicOnlineAdmissionsController, V1PublicAdmissionsController, AdminOnlineAdmissionsController],
   providers: [OnlineAdmissionsService, ParseOnlineAdmissionSubmissionPipe],
   exports: [OnlineAdmissionsService],
 })

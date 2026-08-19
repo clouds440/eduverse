@@ -21,6 +21,8 @@ type ProgramEnrollment = {
   admittedAt?: Date | string | null;
   startedAt?: Date | string | null;
   requiredStageCountSnapshot?: number;
+  progressionModeSnapshot?: string;
+  completionModeSnapshot?: string;
   program?: NamedEntity & {
     durationValue?: number | null;
     durationUnit?: string | null;
@@ -142,8 +144,8 @@ export function buildStudentProgramOverview(
     completedCredits,
     currentStage,
     nextStage: nextStage ? { id: nextStage.id, name: nextStage.name, code: nextStage.code, sequence: nextStage.sequence } : null,
-    progressionMode: enrollment.program.progressionMode ?? null,
-    completionMode: enrollment.program.completionMode ?? null,
+    progressionMode: enrollment.progressionModeSnapshot ?? null,
+    completionMode: enrollment.completionModeSnapshot ?? null,
   };
 }
 

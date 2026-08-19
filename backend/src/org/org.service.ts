@@ -621,7 +621,7 @@ export class OrgService {
               id: true,
               status: true,
               requiredStageCountSnapshot: true,
-              program: { select: { id: true, name: true, code: true, department: { select: { id: true, name: true, code: true, color: true } } } },
+              program: { select: { id: true, name: true, code: true, campusConfiguration: { select: { department: { select: { id: true, name: true, code: true, color: true } } } } } },
               stageEnrollments: { select: { id: true, status: true }, orderBy: { createdAt: 'asc' } },
             },
             orderBy: { admittedAt: 'desc' },

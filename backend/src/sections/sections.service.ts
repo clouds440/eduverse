@@ -36,7 +36,7 @@ const SECTION_INCLUDE = {
     include: {
       stageCourseRequirement: { include: { programStage: true } },
       programStageOffering: {
-        include: { programStage: true, programOffering: { include: { program: true, academicCycle: true } } },
+        include: { programStage: true, programOffering: { include: { program: true, campusBinding: { include: { academicCycle: true } } } } },
       },
     },
   },
@@ -112,7 +112,7 @@ export class SectionsService {
             offerings: {
               where: {
                 id: { in: mappings.map((row) => row.programStageOfferingId) },
-                programOffering: { academicCycleId },
+                programOffering: { campusBinding: { academicCycleId } },
               },
             },
           },

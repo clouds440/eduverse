@@ -7,7 +7,7 @@ describe('ProgressionWorkbenchService', () => {
   it('applies row-level progression and persists the replayable result', async () => {
     const operationUpdate = jest.fn();
     const prisma = {
-      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', status: ProgramStageOfferingStatus.OPEN, programStage: { id: 'stage-1' }, programOffering: { program: { departmentId: 'department-1' }, academicCycle: {} } }) },
+      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', status: ProgramStageOfferingStatus.OPEN, programStage: { id: 'stage-1' }, programOffering: { program: { campusConfiguration: { departmentId: 'department-1' } }, academicCycle: {} } }) },
       progressionBulkOperation: { create: jest.fn().mockResolvedValue({ id: 'operation-1' }), update: operationUpdate },
       studentStageEnrollment: { findMany: jest.fn().mockResolvedValue([{ id: 'attempt-1', studentProgramEnrollmentId: 'major-1', programStageOfferingId: 'source', status: StudentStageEnrollmentStatus.IN_PROGRESS, cohortOfferingId: null, studentProgramEnrollment: { studentId: 'student-1' } }]) },
     };
@@ -27,7 +27,7 @@ describe('ProgressionWorkbenchService', () => {
 
   it('returns a row failure without rolling back successful students', async () => {
     const prisma = {
-      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', programStage: {}, programOffering: { program: { departmentId: 'department-1' }, academicCycle: {} } }) },
+      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', programStage: {}, programOffering: { program: { campusConfiguration: { departmentId: 'department-1' } }, academicCycle: {} } }) },
       progressionBulkOperation: { create: jest.fn(), update: jest.fn() },
       studentStageEnrollment: { findMany: jest.fn().mockResolvedValue([]) },
     };
@@ -42,7 +42,7 @@ describe('ProgressionWorkbenchService', () => {
 
   it('resolves the final stage and program through one atomic command', async () => {
     const prisma = {
-      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', programStage: { id: 'final-stage' }, programOffering: { program: { departmentId: 'department-1' }, academicCycle: {} } }) },
+      programStageOffering: { findFirst: jest.fn().mockResolvedValue({ id: 'source', programStage: { id: 'final-stage' }, programOffering: { program: { campusConfiguration: { departmentId: 'department-1' } }, academicCycle: {} } }) },
       progressionBulkOperation: { create: jest.fn(), update: jest.fn() },
       studentStageEnrollment: { findMany: jest.fn().mockResolvedValue([{ id: 'attempt-final', studentProgramEnrollmentId: 'major-1', programStageOfferingId: 'source', cohortOfferingId: null, studentProgramEnrollment: { studentId: 'student-1' } }]) },
     };

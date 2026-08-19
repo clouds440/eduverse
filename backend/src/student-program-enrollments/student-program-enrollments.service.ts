@@ -45,7 +45,7 @@ const OPEN_STATUSES: StudentProgramEnrollmentStatus[] = [
 ];
 
 const ENROLLMENT_INCLUDE = {
-  program: { include: { department: true } },
+  program: { include: { campusConfiguration: { include: { department: true } } } },
   curriculumVersion: {
     include: { stages: { orderBy: { sequence: 'asc' as const } } },
   },
@@ -55,7 +55,7 @@ const ENROLLMENT_INCLUDE = {
     orderBy: { createdAt: 'asc' as const },
     include: {
       programStage: true,
-      programStageOffering: { include: { programOffering: { include: { academicCycle: true } } } },
+      programStageOffering: { include: { programOffering: { include: { campusBinding: { include: { academicCycle: true } } } } } },
       cohortOffering: { include: { cohort: true } },
     },
   },
@@ -175,34 +175,38 @@ export class StudentProgramEnrollmentsService {
       const offering = await tx.programOffering.findFirst({
         where: {
           id: programOfferingId,
-          organizationId: orgId,
+          campusBinding: { organizationId: orgId },
           programId,
           program: { status: ProgramStatus.ACTIVE },
         },
         include: {
-          program: { include: { department: true } },
-          curriculumVersion: {
+          program: { include: { campusConfiguration: { include: { department: true } } } },
+          campusBinding: {
             include: {
-              stages: { orderBy: { sequence: 'asc' } },
-              programConfigurationRevision: true,
+              curriculumVersion: {
+                include: {
+                  stages: { orderBy: { sequence: 'asc' } },
+                  programConfigurationRevision: true,
+                },
+              },
             },
           },
         },
       });
       if (!offering) throw new NotFoundException('Program offering not found');
-      if (offering.curriculumVersion.stages.length === 0) {
+      if (!offering.campusBinding || offering.campusBinding.curriculumVersion.stages.length === 0) {
         throw new ConflictException('The program offering curriculum has no stages');
       }
       return {
         program: offering.program,
-        revision: offering.curriculumVersion.programConfigurationRevision,
-        curriculum: offering.curriculumVersion,
+        revision: offering.campusBinding.curriculumVersion.programConfigurationRevision,
+        curriculum: offering.campusBinding.curriculumVersion,
       };
     }
     const program = await tx.program.findFirst({
-      where: { id: programId, organizationId: orgId, status: ProgramStatus.ACTIVE },
+      where: { id: programId, campusConfiguration: { organizationId: orgId }, status: ProgramStatus.ACTIVE },
       include: {
-        department: true,
+        campusConfiguration: { include: { department: true } },
         configurationRevisions: { orderBy: { version: 'desc' }, take: 1 },
         curriculumVersions: {
           where: { status: CurriculumStatus.ACTIVE, isDefaultForAdmissions: true },
@@ -212,7 +216,8 @@ export class StudentProgramEnrollmentsService {
       },
     });
     if (!program) throw new NotFoundException('Active program not found');
-    const revision = program.configurationRevisions.find((row) => row.version === program.configurationVersion);
+    if (!program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+    const revision = program.configurationRevisions.find((row) => row.version === program.campusConfiguration!.configurationVersion);
     if (!revision) throw new ConflictException('The current program configuration revision is unavailable');
     const curriculum = program.curriculumVersions.find((row) => row.programConfigurationRevisionId === revision.id);
     if (!curriculum || curriculum.stages.length === 0) {
@@ -225,8 +230,9 @@ export class StudentProgramEnrollmentsService {
     return this.runTransaction(async (tx) => {
       const { program } = await this.admissionProgram(tx, orgId, programId, programOfferingId);
       const scope = await getDepartmentScope(this.prisma, orgId, actor);
-      assertDepartmentInScope(scope, program.departmentId, 'You cannot assign a program outside your department scope');
-      return program.department;
+      if (!program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+      assertDepartmentInScope(scope, program.campusConfiguration.departmentId, 'You cannot assign a program outside your department scope');
+      return program.campusConfiguration.department;
     });
   }
 
@@ -261,12 +267,12 @@ export class StudentProgramEnrollmentsService {
         status: StudentProgramEnrollmentStatus.ADMITTED,
         openSlot: this.openSlot(studentId),
         requiredStageCountSnapshot: curriculum.stages.filter((stage) => !stage.isOptional && stage.sequence >= (entryStage?.sequence ?? 0)).length,
-        programConfigurationVersionSnapshot: program.configurationVersion,
+        programConfigurationVersionSnapshot: program.campusConfiguration!.configurationVersion,
         curriculumSnapshotHash: revision.checksum,
-        progressionModeSnapshot: program.progressionMode,
-        completionModeSnapshot: program.completionMode,
-        minimumPassingPercentageSnapshot: program.minimumPassingPercentage,
-        minimumAttendancePercentageSnapshot: program.minimumAttendancePercentage,
+        progressionModeSnapshot: program.campusConfiguration!.progressionMode,
+        completionModeSnapshot: program.campusConfiguration!.completionMode,
+        minimumPassingPercentageSnapshot: program.campusConfiguration!.minimumPassingPercentage,
+        minimumAttendancePercentageSnapshot: program.campusConfiguration!.minimumAttendancePercentage,
         entryStageId: entryStage?.id,
         admittedById: actorId,
       },
@@ -294,7 +300,11 @@ export class StudentProgramEnrollmentsService {
       where: {
         organizationId: orgId,
         studentId,
-        program: { departmentId: !scope.applies || scope.all ? undefined : { in: scope.departmentIds } },
+        program: {
+          campusConfiguration: {
+            departmentId: !scope.applies || scope.all ? undefined : { in: scope.departmentIds },
+          },
+        },
       },
       include: ENROLLMENT_INCLUDE,
       orderBy: { admittedAt: 'desc' },
@@ -323,11 +333,11 @@ export class StudentProgramEnrollmentsService {
             programOffering: {
               status: ProgramOfferingStatus.OPEN,
               programId: enrollment.programId,
-              curriculumVersionId: enrollment.curriculumVersionId,
+              campusBinding: { curriculumVersionId: enrollment.curriculumVersionId },
             },
           },
-          include: { programStage: true, programOffering: { include: { academicCycle: true } } },
-          orderBy: [{ programStage: { sequence: 'asc' } }, { programOffering: { academicCycle: { startDate: 'asc' } } }],
+          include: { programStage: true, programOffering: { include: { campusBinding: { include: { academicCycle: true } } } } },
+          orderBy: [{ programStage: { sequence: 'asc' } }, { programOffering: { campusBinding: { academicCycle: { startDate: 'asc' } } } }],
         })
       : [];
     const currentStage = enrollment.stageEnrollments.find((stage) => stage.status === StudentStageEnrollmentStatus.IN_PROGRESS);
@@ -363,11 +373,12 @@ export class StudentProgramEnrollmentsService {
   private async ownedEnrollment(orgId: string, studentId: string, enrollmentId: string, actor: Actor) {
     const enrollment = await this.prisma.studentProgramEnrollment.findFirst({
       where: { id: enrollmentId, organizationId: orgId, studentId },
-      include: { program: true },
+      include: { program: { include: { campusConfiguration: true } } },
     });
     if (!enrollment) throw new NotFoundException('Student program enrollment not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, enrollment.program.departmentId, 'You cannot manage this program outside your assigned departments');
+    if (!enrollment.program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+    assertDepartmentInScope(scope, enrollment.program.campusConfiguration.departmentId, 'You cannot manage this program outside your assigned departments');
     return enrollment;
   }
 
@@ -382,11 +393,12 @@ export class StudentProgramEnrollmentsService {
       }
       const current = await tx.studentProgramEnrollment.findFirst({
         where: { organizationId: orgId, studentId, status: { in: OPEN_STATUSES } },
-        include: { program: true },
+        include: { program: { include: { campusConfiguration: true } } },
       });
       if (!current) throw new ConflictException('Student does not have an active major to transfer');
       const scope = await getDepartmentScope(tx, orgId, actor);
-      assertDepartmentInScope(scope, current.program.departmentId, 'You cannot transfer a student from a program outside your assigned departments');
+      if (!current.program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+      assertDepartmentInScope(scope, current.program.campusConfiguration.departmentId, 'You cannot transfer a student from a program outside your assigned departments');
       await tx.studentStageEnrollment.updateMany({
         where: { studentProgramEnrollmentId: current.id, status: { in: [StudentStageEnrollmentStatus.PLANNED, StudentStageEnrollmentStatus.IN_PROGRESS] } },
         data: { status: StudentStageEnrollmentStatus.WITHDRAWN, completedAt: new Date(), resolvedById: actor.id, reason: dto.reason },
@@ -486,15 +498,16 @@ export class StudentProgramEnrollmentsService {
         id: programStageOfferingId,
         organizationId: orgId,
         status: ProgramStageOfferingStatus.OPEN,
-        programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, curriculumVersionId: enrollment.curriculumVersionId },
+        programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, campusBinding: { curriculumVersionId: enrollment.curriculumVersionId } },
       },
-      include: { programStage: true, programOffering: { include: { academicCycle: true } } },
+      include: { programStage: true, programOffering: { include: { campusBinding: { include: { academicCycle: true } } } } },
     });
     if (!offering) throw new BadRequestException('Open stage offering does not match the student program and curriculum');
-    await assertAcademicCycleWritable(tx, orgId, offering.programOffering.academicCycleId, 'DELIVERY');
+    if (!offering.programOffering.campusBinding) throw new ConflictException('Campus offering binding not found');
+    await assertAcademicCycleWritable(tx, orgId, offering.programOffering.campusBinding.academicCycleId, 'DELIVERY');
     if (cohortOfferingId) {
       const cohort = await tx.cohortOffering.findFirst({
-        where: { id: cohortOfferingId, organizationId: orgId, status: CohortOfferingStatus.ACTIVE, academicCycleId: offering.programOffering.academicCycleId, programStageOfferingId },
+        where: { id: cohortOfferingId, organizationId: orgId, status: CohortOfferingStatus.ACTIVE, academicCycleId: offering.programOffering.campusBinding.academicCycleId, programStageOfferingId },
       });
       if (!cohort) throw new BadRequestException('Cohort offering does not match the selected stage offering');
     }
@@ -529,8 +542,8 @@ export class StudentProgramEnrollmentsService {
         status: StudentStageEnrollmentStatus.IN_PROGRESS,
         stageNameSnapshot: offering.programStage.name,
         stageCodeSnapshot: offering.programStage.code,
-        cycleNameSnapshot: offering.programOffering.academicCycle.name,
-        cycleCodeSnapshot: offering.programOffering.academicCycle.code,
+        cycleNameSnapshot: offering.programOffering.campusBinding.academicCycle.name,
+        cycleCodeSnapshot: offering.programOffering.campusBinding.academicCycle.code,
         reason,
         startedAt: new Date(),
       },
@@ -550,7 +563,7 @@ export class StudentProgramEnrollmentsService {
   async ensureCohortOfferingPlacement(tx: Transaction, orgId: string, studentId: string, cohortOfferingId: string, actorId: string) {
     const cohort = await tx.cohortOffering.findFirst({
       where: { id: cohortOfferingId, organizationId: orgId },
-      include: { programStageOffering: { include: { programOffering: true } } },
+      include: { programStageOffering: { include: { programOffering: { include: { campusBinding: true } } } } },
     });
     if (!cohort?.programStageOffering) return null;
     const enrollment = await tx.studentProgramEnrollment.findFirst({
@@ -558,7 +571,7 @@ export class StudentProgramEnrollmentsService {
         organizationId: orgId,
         studentId,
         programId: cohort.programStageOffering.programOffering.programId,
-        curriculumVersionId: cohort.programStageOffering.programOffering.curriculumVersionId,
+        curriculumVersionId: cohort.programStageOffering.programOffering.campusBinding!.curriculumVersionId,
         status: { in: OPEN_STATUSES },
       },
     });
@@ -733,7 +746,7 @@ export class StudentProgramEnrollmentsService {
           organizationId: orgId,
           programStageId: source.programStageId,
           status: ProgramStageOfferingStatus.OPEN,
-          programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, curriculumVersionId: enrollment.curriculumVersionId },
+          programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, campusBinding: { curriculumVersionId: enrollment.curriculumVersionId } },
         },
         select: { id: true },
       });

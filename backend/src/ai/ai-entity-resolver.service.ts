@@ -278,7 +278,10 @@ export class AIEntityResolverService implements OnModuleInit {
   }
 
   private async searchPrograms(context: AIToolContext, search: string, limit: number) {
-    const where: Prisma.ProgramWhereInput = { organizationId: context.orgId, ...programSearch(search) };
+    const where: Prisma.ProgramWhereInput = {
+      campusConfiguration: { organizationId: context.orgId },
+      ...programSearch(search),
+    };
     if (context.role === Role.STUDENT) {
       where.studentEnrollments = { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, student: { userId: context.userId } } };
     } else if (context.role === Role.GUARDIAN) {
@@ -287,7 +290,9 @@ export class AIEntityResolverService implements OnModuleInit {
       where.offerings = { some: { stageOfferings: { some: { sectionMappings: { some: { section: { teachers: { some: { userId: context.userId } } } } } } } } };
     } else if (OVERSIGHT_ROLES.has(context.role ?? '')) {
       const scope = await getDepartmentScope(this.prisma, context.orgId, actorForScopedServices(context));
-      if (scope.applies && !scope.all) where.departmentId = { in: scope.departmentIds };
+      if (scope.applies && !scope.all) {
+        where.campusConfiguration = { organizationId: context.orgId, departmentId: { in: scope.departmentIds } };
+      }
     } else {
       return [];
     }
@@ -295,23 +300,23 @@ export class AIEntityResolverService implements OnModuleInit {
       where,
       take: 60,
       include: {
-        department: { select: { id: true, name: true, code: true } },
+        campusConfiguration: { include: { department: { select: { id: true, name: true, code: true } } } },
         curriculumVersions: { where: { status: 'ACTIVE' }, take: 1, include: { _count: { select: { stages: true } } } },
         _count: { select: { offerings: true, studentEnrollments: true } },
       },
       orderBy: { name: 'asc' },
     });
-    const ranked = rankOrDefault(programs, search, (program) => [program.name, program.code, program.department.name], limit);
+    const ranked = rankOrDefault(programs, search, (program) => [program.name, program.code, program.campusConfiguration?.department.name], limit);
     return ranked.map(({ item: program, confidence }) => ({
       entity: 'program',
       programId: program.id,
       label: program.code ? `${program.code} - ${program.name}` : program.name,
       code: program.code,
-      department: program.department.name,
+      department: program.campusConfiguration?.department.name ?? null,
       status: program.status,
-      structureType: program.structureType,
-      progressionMode: program.progressionMode,
-      completionMode: program.completionMode,
+      structureType: program.campusConfiguration?.structureType ?? null,
+      progressionMode: program.campusConfiguration?.progressionMode ?? null,
+      completionMode: program.campusConfiguration?.completionMode ?? null,
       durationValue: program.durationValue,
       durationUnit: program.durationUnit,
       activeCurriculum: program.curriculumVersions[0]?.name ?? null,

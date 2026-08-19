@@ -6,7 +6,7 @@ export interface UploadedFileInfo {
   mimeType: string;
   entityType: string;
   entityId: string;
-  orgId: string;
+  orgId: string | null;
   publicId?: string;
   resourceType?: string;
   deliveryType?: string;

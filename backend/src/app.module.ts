@@ -51,12 +51,16 @@ import { ProgramOfferingsModule } from './program-offerings/program-offerings.mo
 import { HealthModule } from './health/health.module';
 import { OnlineAdmissionsModule } from './online-admissions/online-admissions.module';
 import { CaptchaModule } from './captcha/captcha.module';
+import { EducationProvidersModule } from './education-providers/education-providers.module';
+import { AdmissionFormsModule } from './admission-forms/admission-forms.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EmailTemplatesModule,
     CaptchaModule,
+      EducationProvidersModule,
+      AdmissionFormsModule,
     ActivityLogsModule,
     ScheduleModule.forRoot(),
     HealthModule,

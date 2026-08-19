@@ -189,7 +189,7 @@ export class AcademicCycleArchivesService {
     }
     const unresolved = await this.prisma.studentStageEnrollment.count({
       where: {
-        programStageOffering: { programOffering: { academicCycleId: cycleId } },
+        programStageOffering: { programOffering: { campusBinding: { academicCycleId: cycleId } } },
         status: StudentStageEnrollmentStatus.IN_PROGRESS,
       },
     });
@@ -309,7 +309,7 @@ export class AcademicCycleArchivesService {
                 cohort: true,
                 programStageOffering: {
                   include: {
-                    programOffering: { include: { program: { include: { department: true } }, curriculumVersion: true } },
+                    programOffering: { include: { program: { include: { campusConfiguration: { include: { department: true } } } }, campusBinding: { include: { curriculumVersion: true } } } },
                     programStage: { include: { curriculumVersion: true } },
                   },
                 },
@@ -325,7 +325,7 @@ export class AcademicCycleArchivesService {
           include: {
             programStageOffering: {
               include: {
-                programOffering: { include: { program: { include: { department: true } }, curriculumVersion: true } },
+                programOffering: { include: { program: { include: { campusConfiguration: { include: { department: true } } } }, campusBinding: { include: { curriculumVersion: true } } } },
                 programStage: { include: { curriculumVersion: true } },
               },
             },
@@ -527,12 +527,12 @@ export class AcademicCycleArchivesService {
         sourceProgramOfferingId: stageOffering.programOffering.id,
         sourceProgramStageOfferingId: stageOffering.id,
         sourceProgramId: stageOffering.programOffering.program.id,
-        sourceCurriculumVersionId: stageOffering.programOffering.curriculumVersion.id,
+        sourceCurriculumVersionId: stageOffering.programOffering.campusBinding!.curriculumVersion.id,
         sourceProgramStageId: stageOffering.programStage.id,
         sourceStageCourseRequirementId: null,
-        departmentLabel: stageOffering.programOffering.program.department.name,
+        departmentLabel: stageOffering.programOffering.program.campusConfiguration?.department.name || 'Unassigned',
         programLabel: stageOffering.programOffering.program.name,
-        curriculumLabel: stageOffering.programOffering.curriculumVersion.name,
+        curriculumLabel: stageOffering.programOffering.campusBinding!.curriculumVersion.name,
         stageLabel: stageOffering.programStage.name,
       }];
     });
@@ -542,19 +542,19 @@ export class AcademicCycleArchivesService {
       sourceProgramOfferingId: mapping.programStageOffering.programOffering.id,
       sourceProgramStageOfferingId: mapping.programStageOffering.id,
       sourceProgramId: mapping.programStageOffering.programOffering.program.id,
-      sourceCurriculumVersionId: mapping.programStageOffering.programOffering.curriculumVersion.id,
+      sourceCurriculumVersionId: mapping.programStageOffering.programOffering.campusBinding!.curriculumVersion.id,
       sourceProgramStageId: mapping.programStageOffering.programStage.id,
       sourceStageCourseRequirementId: mapping.stageCourseRequirementId,
-      departmentLabel: mapping.programStageOffering.programOffering.program.department.name,
+      departmentLabel: mapping.programStageOffering.programOffering.program.campusConfiguration?.department.name || 'Unassigned',
       programLabel: mapping.programStageOffering.programOffering.program.name,
-      curriculumLabel: mapping.programStageOffering.programOffering.curriculumVersion.name,
+      curriculumLabel: mapping.programStageOffering.programOffering.campusBinding!.curriculumVersion.name,
       stageLabel: mapping.programStageOffering.programStage.name,
     }));
     const programIndexes = [...cohortPrograms, ...requirementPrograms];
     const primaryCohort = source.cohortOfferingSections[0]?.cohortOffering.cohort || null;
     const sourceDepartmentId =
       source.course.departmentId ||
-      source.programMappings[0]?.programStageOffering.programOffering.program.departmentId ||
+      source.programMappings[0]?.programStageOffering.programOffering.program.campusConfiguration?.departmentId ||
       null;
     const archiveSection = await this.prisma.academicCycleArchiveSection.upsert(
       {

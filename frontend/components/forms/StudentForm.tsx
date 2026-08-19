@@ -231,7 +231,7 @@ export default function StudentForm({ studentId, initialData, isProfile, initial
         if (identityLocked || studentId) return;
         setValue('programId', value);
         const program = programsData?.data?.find((candidate) => candidate.id === value);
-        if (program) setValue('primaryDepartmentId', program.departmentId);
+        if (program?.campusConfiguration) setValue('primaryDepartmentId', program.campusConfiguration.departmentId);
         trigger(['programId', 'primaryDepartmentId']);
     }, [identityLocked, programsData?.data, setValue, studentId, trigger]);
 

@@ -19,11 +19,12 @@ export class ProgressionWorkbenchService {
   private async sourceOffering(orgId: string, id: string, actor: Actor) {
     const offering = await this.prisma.programStageOffering.findFirst({
       where: { id, organizationId: orgId },
-      include: { programStage: true, programOffering: { include: { program: true, academicCycle: true } } },
+      include: { programStage: true, programOffering: { include: { program: { include: { campusConfiguration: true } }, campusBinding: { include: { academicCycle: true } } } } },
     });
     if (!offering) throw new NotFoundException('Program stage offering not found');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, offering.programOffering.program.departmentId, 'You cannot manage progression outside your assigned departments');
+    if (!offering.programOffering.program.campusConfiguration) throw new NotFoundException('Campus program configuration not found');
+    assertDepartmentInScope(scope, offering.programOffering.program.campusConfiguration.departmentId, 'You cannot manage progression outside your assigned departments');
     return offering;
   }
 

@@ -16,9 +16,11 @@ import {
     PaginatedResponse,
     Program,
     ProgramCompletionMode,
+    ProgramDurationUnit,
     ProgramStageInput,
     ProgramProgressionMode,
     ProgramStructureType,
+    ProgramType,
     Role,
 } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -27,7 +29,6 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Textarea } from '@/components/ui/Textarea';
-import { Toggle } from '@/components/ui/Toggle';
 import { ProgramStageArrayEditor } from './ProgramStageArrayEditor';
 
 interface ProgramFormProps {
@@ -88,18 +89,29 @@ export function ProgramForm({ program }: ProgramFormProps) {
     const [form, setForm] = useState({
         name: program?.name || '',
         code: program?.code || '',
-        departmentId: program?.departmentId || '',
+        programType: program?.programType || ProgramType.DEGREE,
+        subjectArea: program?.subjectArea || '',
+        educationLevel: program?.educationLevel || '',
+        summary: program?.summary || '',
         description: program?.description || '',
-        structureType: program?.structureType || ProgramStructureType.TERM_BASED,
-        progressionMode: program?.progressionMode || ProgramProgressionMode.SEQUENTIAL,
-        completionMode: program?.completionMode || ProgramCompletionMode.REQUIREMENTS,
-        minimumPassingPercentage: program?.minimumPassingPercentage ?? 50,
-        minimumAttendancePercentage: program?.minimumAttendancePercentage == null ? '' : String(program.minimumAttendancePercentage),
-        curriculumName: isEdit ? `${currentCurriculum?.name || program?.name || 'Program'} revision ${Number(program?.configurationVersion || 1) + 1}` : '',
-        curriculumCode: isEdit ? `${program?.code || 'PROGRAM'}-R${Number(program?.configurationVersion || 1) + 1}` : '',
-        isVisibleForAdmissions: program?.isVisibleForAdmissions || false,
-        admissionsLabel: program?.admissionsLabel || '',
-        admissionsDescription: program?.admissionsDescription || '',
+        languageCodes: program?.languageCodes?.join(', ') || '',
+        credentialType: program?.credentialType || '',
+        credentialAwarded: program?.credentialAwarded || '',
+        targetAudience: program?.targetAudience || '',
+        learningOutcomes: program?.learningOutcomes?.join('\n') || '',
+        entryOverview: program?.entryOverview || '',
+        awardingBody: program?.awardingBody || '',
+        accreditationSummary: program?.accreditationSummary || '',
+        durationValue: program?.durationValue == null ? '' : String(program.durationValue),
+        durationUnit: program?.durationUnit || ProgramDurationUnit.MONTHS,
+        departmentId: program?.campusConfiguration?.departmentId || '',
+        structureType: program?.campusConfiguration?.structureType || ProgramStructureType.TERM_BASED,
+        progressionMode: program?.campusConfiguration?.progressionMode || ProgramProgressionMode.SEQUENTIAL,
+        completionMode: program?.campusConfiguration?.completionMode || ProgramCompletionMode.REQUIREMENTS,
+        minimumPassingPercentage: program?.campusConfiguration?.minimumPassingPercentage ?? 50,
+        minimumAttendancePercentage: program?.campusConfiguration?.minimumAttendancePercentage == null ? '' : String(program.campusConfiguration.minimumAttendancePercentage),
+        curriculumName: isEdit ? `${currentCurriculum?.name || program?.name || 'Program'} revision ${Number(program?.campusConfiguration?.configurationVersion || 1) + 1}` : '',
+        curriculumCode: isEdit ? `${program?.code || 'PROGRAM'}-R${Number(program?.campusConfiguration?.configurationVersion || 1) + 1}` : '',
     });
     const [stages, setStages] = useState<ProgramStageInput[]>(() => initialStages(program));
     const [changeReason, setChangeReason] = useState('');
@@ -125,16 +137,29 @@ export function ProgramForm({ program }: ProgramFormProps) {
         const payload: CreateProgramRequest = {
             name: form.name,
             code: form.code,
-            departmentId: form.departmentId,
+            programType: form.programType,
+            subjectArea: form.subjectArea || undefined,
+            educationLevel: form.educationLevel || undefined,
+            summary: form.summary || undefined,
             description: form.description || undefined,
-            structureType: form.structureType,
-            progressionMode: form.progressionMode,
-            completionMode: form.completionMode,
-            minimumPassingPercentage: form.minimumPassingPercentage,
-            minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
-            isVisibleForAdmissions: form.isVisibleForAdmissions,
-            admissionsLabel: form.admissionsLabel || undefined,
-            admissionsDescription: form.admissionsDescription || undefined,
+            languageCodes: form.languageCodes.split(',').map((code) => code.trim()).filter(Boolean),
+            credentialType: form.credentialType || undefined,
+            credentialAwarded: form.credentialAwarded || undefined,
+            targetAudience: form.targetAudience || undefined,
+            learningOutcomes: form.learningOutcomes.split('\n').map((outcome) => outcome.trim()).filter(Boolean),
+            entryOverview: form.entryOverview || undefined,
+            awardingBody: form.awardingBody || undefined,
+            accreditationSummary: form.accreditationSummary || undefined,
+            durationValue: form.durationValue === '' ? undefined : Number(form.durationValue),
+            durationUnit: form.durationValue === '' ? undefined : form.durationUnit,
+            campusConfiguration: {
+                departmentId: form.departmentId,
+                structureType: form.structureType,
+                progressionMode: form.progressionMode,
+                completionMode: form.completionMode,
+                minimumPassingPercentage: form.minimumPassingPercentage,
+                minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
+            },
             curriculumName: form.curriculumName,
             curriculumCode: form.curriculumCode,
             stages,
@@ -154,7 +179,7 @@ export function ProgramForm({ program }: ProgramFormProps) {
             let saved: Program;
             if (program) {
                 saved = await api.programs.replaceStructure(program.id, {
-                    configurationVersion: program.configurationVersion,
+                    configurationVersion: program.campusConfiguration!.configurationVersion,
                     changeReason,
                     curriculumName: form.curriculumName,
                     curriculumCode: form.curriculumCode,
@@ -162,16 +187,29 @@ export function ProgramForm({ program }: ProgramFormProps) {
                     metadata: {
                         name: form.name,
                         code: form.code,
-                        departmentId: form.departmentId,
+                        programType: form.programType,
+                        subjectArea: form.subjectArea,
+                        educationLevel: form.educationLevel,
+                        summary: form.summary,
                         description: form.description,
-                        structureType: form.structureType,
-                        progressionMode: form.progressionMode,
-                        completionMode: form.completionMode,
-                        minimumPassingPercentage: form.minimumPassingPercentage,
-                        minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
-                        isVisibleForAdmissions: form.isVisibleForAdmissions,
-                        admissionsLabel: form.admissionsLabel,
-                        admissionsDescription: form.admissionsDescription,
+                        languageCodes: form.languageCodes.split(',').map((code) => code.trim()).filter(Boolean),
+                        credentialType: form.credentialType,
+                        credentialAwarded: form.credentialAwarded,
+                        targetAudience: form.targetAudience,
+                        learningOutcomes: form.learningOutcomes.split('\n').map((outcome) => outcome.trim()).filter(Boolean),
+                        entryOverview: form.entryOverview,
+                        awardingBody: form.awardingBody,
+                        accreditationSummary: form.accreditationSummary,
+                        durationValue: form.durationValue === '' ? undefined : Number(form.durationValue),
+                        durationUnit: form.durationValue === '' ? undefined : form.durationUnit,
+                        campusConfiguration: {
+                            departmentId: form.departmentId,
+                            structureType: form.structureType,
+                            progressionMode: form.progressionMode,
+                            completionMode: form.completionMode,
+                            minimumPassingPercentage: form.minimumPassingPercentage,
+                            minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
+                        },
                     },
                 }, token);
             } else {
@@ -194,7 +232,7 @@ export function ProgramForm({ program }: ProgramFormProps) {
             <div className="mx-auto w-full max-w-7xl pb-10">
                 <PageHeader
                     title={isEdit ? `Edit ${program?.name}` : 'Create Program'}
-                    description={isEdit ? `Configuration revision ${program!.configurationVersion + 1}` : 'Create a durable course offering and define how students progress through it.'}
+                    description={isEdit ? `Configuration revision ${program!.campusConfiguration!.configurationVersion + 1}` : 'Create the catalog record and its Campus academic configuration.'}
                     icon={GraduationCap}
                     breadcrumbs={[{ label: 'Programs', href: '/programs' }, { label: isEdit ? 'Edit' : 'Create' }]}
                     className="mb-6"
@@ -210,7 +248,7 @@ export function ProgramForm({ program }: ProgramFormProps) {
                     <section>
                         <SectionIntroduction
                             title="Program identity"
-                            description="The department owns this program and becomes the main department for students admitted into it. Department-scoped admins can manage programs only in their assigned departments."
+                            description="Define the provider-owned catalog record. Admissions presentation and application rules are configured separately."
                             icon={BookOpen}
                         />
                         <div className="rounded-lg border border-border/70 bg-card/75 p-4 shadow-sm sm:p-6">
@@ -223,21 +261,65 @@ export function ProgramForm({ program }: ProgramFormProps) {
                                     <Label className="text-sm font-bold">Program code <span className="text-danger">*</span></Label>
                                     <Input icon={Hash} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="e.g. BSCS" required />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Program type <span className="text-danger">*</span></Label>
+                                    <CustomSelect value={form.programType} onChange={(programType) => setForm({ ...form, programType: programType as ProgramType })} options={Object.values(ProgramType).map((value) => ({ value, label: value.replaceAll('_', ' ') }))} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Subject area</Label>
+                                    <Input value={form.subjectArea} onChange={(event) => setForm({ ...form, subjectArea: event.target.value })} placeholder="e.g. Computer science" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Education level</Label>
+                                    <Input value={form.educationLevel} onChange={(event) => setForm({ ...form, educationLevel: event.target.value })} placeholder="e.g. Undergraduate" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Languages</Label>
+                                    <Input value={form.languageCodes} onChange={(event) => setForm({ ...form, languageCodes: event.target.value })} placeholder="en, ur" />
+                                </div>
                                 <div className="space-y-2 md:col-span-2">
-                                    <Label className="text-sm font-bold">Department <span className="text-danger">*</span></Label>
-                                    <CustomSelect
-                                        icon={Building2}
-                                        searchable
-                                        value={form.departmentId}
-                                        onChange={(departmentId) => setForm({ ...form, departmentId })}
-                                        options={(departmentsData?.data || []).map((department) => ({ value: department.id, label: `${department.code} - ${department.name}` }))}
-                                        placeholder="Select the owning department"
-                                    />
-                                    <p className="text-xs font-medium leading-relaxed text-muted-foreground">This department owns the program. Curriculum courses may still be selected from other departments.</p>
+                                    <Label className="text-sm font-bold">Summary</Label>
+                                    <Input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} placeholder="A concise catalog summary" />
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <Label className="text-sm font-bold">Description</Label>
                                     <Textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} placeholder="Summarize the program focus, qualification, and intended outcomes." />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Credential type</Label>
+                                    <Input value={form.credentialType} onChange={(event) => setForm({ ...form, credentialType: event.target.value })} placeholder="e.g. Degree" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Credential awarded</Label>
+                                    <Input value={form.credentialAwarded} onChange={(event) => setForm({ ...form, credentialAwarded: event.target.value })} placeholder="e.g. Bachelor of Science" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Duration</Label>
+                                    <Input type="number" min={1} value={form.durationValue} onChange={(event) => setForm({ ...form, durationValue: event.target.value })} placeholder="e.g. 4" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Duration unit</Label>
+                                    <CustomSelect value={form.durationUnit} onChange={(durationUnit) => setForm({ ...form, durationUnit: durationUnit as ProgramDurationUnit })} options={Object.values(ProgramDurationUnit).map((value) => ({ value, label: value }))} />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold">Target audience</Label>
+                                    <Textarea value={form.targetAudience} onChange={(event) => setForm({ ...form, targetAudience: event.target.value })} rows={2} />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold">Learning outcomes</Label>
+                                    <Textarea value={form.learningOutcomes} onChange={(event) => setForm({ ...form, learningOutcomes: event.target.value })} rows={4} placeholder="One outcome per line" />
+                                </div>
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label className="text-sm font-bold">Entry overview</Label>
+                                    <Textarea value={form.entryOverview} onChange={(event) => setForm({ ...form, entryOverview: event.target.value })} rows={3} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Awarding body</Label>
+                                    <Input value={form.awardingBody} onChange={(event) => setForm({ ...form, awardingBody: event.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Accreditation</Label>
+                                    <Input value={form.accreditationSummary} onChange={(event) => setForm({ ...form, accreditationSummary: event.target.value })} />
                                 </div>
                             </div>
                         </div>
@@ -246,11 +328,15 @@ export function ProgramForm({ program }: ProgramFormProps) {
                     <section>
                         <SectionIntroduction
                             title="Progression rules"
-                            description="These rules describe the durable program itself. Institute-wide academic cycles are selected later when staff create a program offering."
+                            description="Bind this catalog program to the Campus department and define its operational academic rules."
                             icon={Settings2}
                         />
                         <div className="rounded-lg border border-border/70 bg-card/75 p-4 shadow-sm sm:p-6">
                             <div className="grid gap-5 md:grid-cols-3">
+                                <div className="space-y-2 md:col-span-3">
+                                    <Label className="text-sm font-bold">Department <span className="text-danger">*</span></Label>
+                                    <CustomSelect icon={Building2} searchable value={form.departmentId} onChange={(departmentId) => setForm({ ...form, departmentId })} options={(departmentsData?.data || []).map((department) => ({ value: department.id, label: `${department.code} - ${department.name}` }))} placeholder="Select the Campus department" />
+                                </div>
                                 <div className="space-y-2">
                                     <Label className="text-sm font-bold">Structure <span className="text-danger">*</span></Label>
                                     <CustomSelect value={form.structureType} onChange={(structureType) => setForm({ ...form, structureType })} options={Object.values(ProgramStructureType).map((value) => ({ value, label: value.replaceAll('_', ' ') }))} />
@@ -305,27 +391,6 @@ export function ProgramForm({ program }: ProgramFormProps) {
                             courses={coursesData?.data || []}
                             rowErrors={rowErrors}
                         />
-                    </section>
-
-                    <section>
-                        <SectionIntroduction
-                            title="Online admissions"
-                            description="Publish this program as an application option when it is ready. The admissions label and summary can be written for prospective students without changing the internal program name."
-                            icon={GraduationCap}
-                        />
-                        <div className="rounded-lg border border-border/70 bg-card/75 p-4 shadow-sm sm:p-6">
-                            <Toggle checked={form.isVisibleForAdmissions} onCheckedChange={(isVisibleForAdmissions) => setForm({ ...form, isVisibleForAdmissions })} label="Visible for admissions" />
-                            <div className="mt-5 grid gap-5 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold">Admissions label</Label>
-                                    <Input value={form.admissionsLabel} onChange={(event) => setForm({ ...form, admissionsLabel: event.target.value })} placeholder="Public-facing program name" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-sm font-bold">Admissions description</Label>
-                                    <Textarea value={form.admissionsDescription} onChange={(event) => setForm({ ...form, admissionsDescription: event.target.value })} rows={3} placeholder="Short summary shown with the application option." />
-                                </div>
-                            </div>
-                        </div>
                     </section>
 
                     <div className="sticky bottom-3 z-20 flex flex-col-reverse gap-2 rounded-lg border border-border/70 bg-card/95 p-3 shadow-xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">

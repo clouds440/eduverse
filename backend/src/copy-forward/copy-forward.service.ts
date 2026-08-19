@@ -75,17 +75,17 @@ export class CopyForwardService {
     }
     const [source, targetStage] = await Promise.all([
       this.prisma.programStageOffering.findFirst({
-        where: { id: dto.sourceProgramStageOfferingId, organizationId: orgId, programOffering: { academicCycleId: dto.fromCycleId } },
-        include: { programOffering: { include: { program: true } } },
+        where: { id: dto.sourceProgramStageOfferingId, organizationId: orgId, programOffering: { campusBinding: { academicCycleId: dto.fromCycleId } } },
+        include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } },
       }),
       this.prisma.programStageOffering.findFirst({
         where: {
           id: dto.targetProgramStageOfferingId,
           organizationId: orgId,
-          programOffering: { academicCycleId: dto.toCycleId },
+          programOffering: { campusBinding: { academicCycleId: dto.toCycleId } },
         },
         include: {
-          programOffering: { include: { program: true } },
+          programOffering: { include: { program: { include: { campusConfiguration: true } } } },
           programStage: { include: { courseRequirements: true } },
         },
       }),
@@ -95,8 +95,11 @@ export class CopyForwardService {
       throw new BadRequestException('Source and target associations must belong to the same program');
     }
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(scope, source.programOffering.program.departmentId, 'You cannot copy this program outside your assigned departments');
-    assertDepartmentInScope(scope, targetStage.programOffering.program.departmentId, 'You cannot copy into this program outside your assigned departments');
+    if (!source.programOffering.program.campusConfiguration || !targetStage.programOffering.program.campusConfiguration) {
+      throw new BadRequestException('Campus program configuration is missing');
+    }
+    assertDepartmentInScope(scope, source.programOffering.program.campusConfiguration.departmentId, 'You cannot copy this program outside your assigned departments');
+    assertDepartmentInScope(scope, targetStage.programOffering.program.campusConfiguration.departmentId, 'You cannot copy into this program outside your assigned departments');
     return { source, targetStage };
   }
 

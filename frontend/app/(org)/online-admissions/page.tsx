@@ -200,7 +200,7 @@ export default function OnlineAdmissionsPage() {
                                 disabled={!programId && !academicCycleId}
                                 minSearchLength={0}
                                 fetchOptions={() => api.programOfferings.list(token!, { programId: programId || undefined, academicCycleId: academicCycleId || undefined })}
-                                mapOption={(offering) => ({ value: offering.id, label: `${offering.program.code} - ${offering.academicCycle.code}` })}
+                                mapOption={(offering) => ({ value: offering.id, label: `${offering.program.code} - ${offering.campusBinding?.academicCycle.code || offering.intakeName}` })}
                             />
                             <Input type="date" aria-label="Submitted from" title="Submitted from" value={submittedFrom} onChange={(event) => updateQueryParams({ submittedFrom: event.target.value || undefined, page: 1 })} />
                             <Input type="date" aria-label="Submitted to" title="Submitted to" value={submittedTo} onChange={(event) => updateQueryParams({ submittedTo: event.target.value || undefined, page: 1 })} />

@@ -46,7 +46,7 @@ export default function Overview({
                                     {major.program.code} - {major.program.name}
                                 </p>
                                 <p className="mt-1 text-sm font-medium text-muted-foreground">
-                                    {major.program.department?.name || 'Department not assigned'}
+                                    {major.program.campusConfiguration?.department?.name || 'Department not assigned'}
                                 </p>
                             </div>
                         </div>
@@ -60,7 +60,7 @@ export default function Overview({
                         <ProgramFact icon={GraduationCap} label="Stage progress" value={`${programOverview?.resolvedStageCount ?? completedStages} of ${programOverview?.requiredStageCount ?? major.requiredStageCountSnapshot}`} detail={`${programOverview?.remainingStageCount ?? Math.max(0, major.requiredStageCountSnapshot - completedStages)} remaining`} />
                         <ProgramFact icon={BookOpenCheck} label="Credit progress" value={programOverview?.totalCredits ? `${programOverview.completedCredits} of ${programOverview.totalCredits}` : 'Not credit-defined'} />
                         <ProgramFact icon={Layers3} label="Next stage" value={programOverview?.nextStage?.name || (programOverview?.remainingStageCount === 0 ? 'Program requirements resolved' : 'Not yet determined')} />
-                        <ProgramFact icon={Clock3} label="Progression policy" value={(programOverview?.progressionMode || major.program.progressionMode).replaceAll('_', ' ')} detail={(programOverview?.completionMode || major.program.completionMode).replaceAll('_', ' ')} />
+                        <ProgramFact icon={Clock3} label="Progression policy" value={(programOverview?.progressionMode || major.program.campusConfiguration?.progressionMode || 'Not configured').replaceAll('_', ' ')} detail={(programOverview?.completionMode || major.program.campusConfiguration?.completionMode || 'Not configured').replaceAll('_', ' ')} />
                     </div>
                     <div>
                         <div className="mb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground"><span>Program completion</span><span>{programOverview?.progressPercentage ?? Math.round((completedStages / Math.max(1, major.requiredStageCountSnapshot)) * 100)}%</span></div>

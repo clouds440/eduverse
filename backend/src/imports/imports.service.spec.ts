@@ -920,7 +920,7 @@ describe('ImportsService cohort validation', () => {
           sequence: 1,
           curriculumVersion: {
             programConfigurationRevision: { version: 2 },
-            program: { id: 'program-1', configurationVersion: 2 },
+            program: { id: 'program-1', campusConfiguration: { configurationVersion: 2 } },
           },
           offerings: [{ id: 'stage-offering-1' }],
         }) },
@@ -964,7 +964,7 @@ describe('ImportsService program-aware student and section validation', () => {
     sequence: 1,
     curriculumVersion: {
       programConfigurationRevision: { version: 2 },
-      program: { id: 'program-1', configurationVersion: 2 },
+      program: { id: 'program-1', campusConfiguration: { configurationVersion: 2 } },
     },
     offerings: [{ id: 'stage-offering-1' }],
     courseRequirements: [{ id: 'requirement-1' }],

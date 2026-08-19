@@ -55,7 +55,7 @@ export default function ProgramsPage() {
             header: 'Program',
             accessor: (row) => <div className="min-w-0"><p className="truncate text-sm font-black">{row.name}</p><p className="truncate text-xs text-muted-foreground">{row.code}</p></div>,
         },
-        { header: 'Department', accessor: (row) => <span className="text-sm font-semibold">{row.department.code} - {row.department.name}</span> },
+        { header: 'Department', accessor: (row) => <span className="text-sm font-semibold">{row.campusConfiguration?.department.code} - {row.campusConfiguration?.department.name}</span> },
         { header: 'Offerings', accessor: (row) => <span className="tabular-nums text-sm font-bold">{row._count?.offerings || 0}</span> },
         { header: 'Students', accessor: (row) => <span className="tabular-nums text-sm font-bold">{row._count?.studentEnrollments || 0}</span> },
         { header: 'Status', badge: true, accessor: (row) => <Badge variant={statusVariant(row.status)} size="sm">{row.status.replaceAll('_', ' ')}</Badge> },

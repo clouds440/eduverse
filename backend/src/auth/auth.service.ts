@@ -17,6 +17,10 @@ import {
   AISubscriptionOwnerType,
   AISubscriptionPlan,
   AISubscriptionStatus,
+  EducationProviderKind,
+  EducationProviderMembershipStatus,
+  EducationProviderRole,
+  EducationProviderStatus,
   LinkedAccountProvider,
   User,
   Organization,
@@ -193,6 +197,32 @@ export class AuthService {
           organizationId: org.id,
           name: registerDto.adminName, // Set name to Admin Name for ORG_ADMIN
           isFirstLogin: false,
+        },
+      });
+
+      const provider = await tx.educationProvider.create({
+        data: {
+          kind: registerDto.type === 'ACADEMY'
+            ? EducationProviderKind.ACADEMY
+            : registerDto.type === 'ONLINE_SCHOOL'
+              ? EducationProviderKind.ONLINE_PROVIDER
+              : ['VOCATIONAL_SCHOOL', 'INSTITUTE', 'TUTORING_CENTER'].includes(registerDto.type)
+                ? EducationProviderKind.TRAINING_PROVIDER
+                : EducationProviderKind.INSTITUTION,
+          displayName: org.name,
+          slug: org.slug,
+          status: EducationProviderStatus.DRAFT,
+          campusOrganizationId: org.id,
+          defaultCurrency: org.currency,
+          contactEmail: org.contactEmail,
+        },
+      });
+      await tx.educationProviderMembership.create({
+        data: {
+          providerId: provider.id,
+          userId: user.id,
+          role: EducationProviderRole.OWNER,
+          status: EducationProviderMembershipStatus.ACTIVE,
         },
       });
 

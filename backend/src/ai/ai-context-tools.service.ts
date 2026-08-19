@@ -130,6 +130,7 @@ export class AIContextToolsService implements OnModuleInit {
     if (include.has('communication')) addOnce('getCommunicationContext', { search, limit: input.limit ?? 6 });
     if (include.has('finance')) addOnce('getFinanceSummary', { search, limit: input.limit ?? 6 });
     if (include.has('admissions')) {
+      addOnce('getPublicAdmissionsCatalogContext', { search, limit: input.limit ?? 8 });
       addOnce('getOnlineAdmissionsContext', { search, limit: input.limit ?? 8 });
       addOnce('getOnlineAdmissionOfferingReadiness', { search, limit: input.limit ?? 8 });
     }

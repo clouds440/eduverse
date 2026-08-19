@@ -150,7 +150,7 @@ export async function searchFilterLookup(request: FilterLookupRequest): Promise<
             return response.data.map((program) => ({
                 value: program.id,
                 label: `${program.code} - ${program.name}`,
-                description: program.department.name,
+                description: program.campusConfiguration?.department.name,
             }));
         }
         case 'academicCycles': {

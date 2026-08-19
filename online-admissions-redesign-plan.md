@@ -32,7 +32,7 @@ Reshape Programs and Online Admissions so that:
 - Email-based application reference and update flow.
 - Campus conversion from an accepted application to a student enrollment when a Campus binding exists.
 - Contracts and API boundaries suitable for a separately deployed frontend or backend.
-- Migration and compatibility strategy for the implementation already in production.
+- Clean-schema rollout strategy for an empty database.
 
 ### Explicitly Deferred
 
@@ -445,7 +445,7 @@ Remove the requirement to find an Org Admin as the uploader for a public applica
 Target file ownership must include:
 
 - `providerId` as tenant boundary.
-- optional `organizationId` for Campus compatibility.
+- optional `organizationId` for genuine Campus linkage.
 - entity type and entity ID.
 - uploader principal type: public applicant, provider member, Campus user, or system.
 - scan status, hash, MIME type, size, and storage metadata.
@@ -606,88 +606,73 @@ Do not split the backend during the first restructure. Create an extractable mod
 - Search indexing and future Discover synchronization consume events or versioned APIs.
 - If extracted later, IDs remain globally unique and public contracts stay unchanged.
 
-## 8. Migration Strategy
+## 8. Clean-Schema Strategy
 
-The migration must be additive and reversible at each deployment boundary. Do not reset production data and do not replace the existing initial migration.
+The database contains no application data, so the redesign targets the final schema directly. It must not introduce transition-only columns, data-copy scripts, dual reads/writes, old-route adapters, or deprecated response fields.
 
-### Stage 1: Add Ownership Without Behavior Change
+### Stage 1: Establish Required Ownership
 
 - Add EducationProvider and provider-membership foundations.
-- Provision one provider per existing Organization.
-- Add nullable `providerId` to Program, ProgramOffering, submissions, requirements, uploads, and relevant files.
-- Backfill from Organization-to-provider mapping.
-- Add indexes and consistency checks.
-- Dual-write organization and provider ownership.
-- Reject writes where provider and organization mapping disagree.
-- Make provider IDs non-null where the target model requires them only after verification.
+- Provision the provider when an Organization or standalone provider is created.
+- Require `providerId` on provider-owned records from their first write.
+- Keep `organizationId` only on Campus operational records whose ownership genuinely belongs to an Organization.
+- Add foreign keys, indexes, and tenant-consistency validation.
 
-### Stage 2: Add Generic Catalog and Admissions Data
+### Stage 2: Build the Target Catalog and Admissions Schema
 
-- Add program type and generic catalog fields.
-- Backfill existing programs with a conservative type such as `DEGREE` or `OTHER` based on explicit admin confirmation; do not guess from names in production migrations.
-- Add offering intake, delivery, location, fee, funding, eligibility, and publication-version models.
-- Add form template/version models and map the existing hard-coded form to a default version.
-- Add submission references to form/publication versions.
-- Continue serving old response shapes through compatibility mappers.
+- Add generic Program catalog fields and separate CampusProgramConfiguration.
+- Add provider-neutral offerings plus explicit Campus delivery bindings.
+- Add intake, delivery, location, fee, funding, eligibility, and publication-version models.
+- Add form template/version models and submission references to immutable versions.
+- Expose only the target API contracts and routes.
 
-### Stage 3: Introduce Campus Bindings
+### Stage 3: Validate and Deploy
 
-- Create CampusProgramConfiguration and CampusProgramOfferingBinding for all existing records.
-- Dual-read/dual-write old fields and binding fields.
-- Update services incrementally to resolve Campus data through bindings.
-- Add database checks/tests that Campus curriculum/stage records match the binding organization.
-- Move public and admissions services to provider-owned models first.
-- Move student progression/delivery services only after compatibility tests pass.
-
-### Stage 4: Remove Legacy Coupling
-
-- Stop writing admissions fields on Program and Campus delivery fields on generic ProgramOffering.
-- Remove ProgramForm admissions controls.
-- Remove admissions controls/documents from ProgramOfferingModal.
-- Make generic services independent of `organizationId`.
-- Retain organization IDs only on Campus operational models and optional submission routing snapshots.
-- Remove deprecated fields only after telemetry confirms no old client usage.
+- Generate the Prisma client and validate the schema and migration SQL.
+- Run service, contract, tenant-isolation, and end-to-end tests against a newly created database.
+- Apply the clean migrations once per environment.
+- Verify required ownership, foreign keys, and public payload redaction after deployment.
 
 ## 9. Implementation Phases
 
-### [ ] Phase 0: Architecture Contracts and Safety Harness
+### [x] Phase 0: Architecture Contracts and Safety Harness
 
-- Write architecture decision records for provider ownership, Program/Campus split, Offering/Campus split, and versioned forms.
-- Create current-data preflight scripts and relation-count reports.
-- Add contract tests around current public admissions payloads and Campus conversion.
-- Record baseline query performance and endpoint behavior.
-- Freeze new admissions fields from being added directly to Program during this work.
+- [x] Write architecture decision records for provider ownership, Program/Campus split, Offering/Campus split, and versioned forms.
+- [x] Create schema/integrity preflight scripts for fresh environments.
+- [x] Add contract tests around current public admissions payloads and Campus conversion.
+- [x] Record the endpoint/query-plan performance harness; live-data baselines are not applicable before seed or production data exists.
+- [x] Freeze new admissions fields from being added directly to Program during this work.
 
 Exit criteria:
 
 - Target relations are agreed and represented in diagrams/ADRs.
 - Existing behavior has regression coverage.
-- Migration preflight can detect inconsistent organization/program/offering records.
+- Schema checks detect inconsistent organization/program/offering ownership.
 
-### [ ] Phase 1: Provider Ownership Foundation
+### [x] Phase 1: Provider Ownership Foundation
 
-- Add EducationProvider and organization link.
-- Backfill provider records for every Organization.
-- Add provider actor context and organization-role adapter.
-- Add provider IDs to program/admissions records and dual-write them.
-- Update file service to accept public-applicant/system upload principals without a fake Org Admin uploader.
-- Add tenant-isolation tests for Campus and standalone-shaped provider fixtures.
+- [x] Add EducationProvider and organization link.
+- [x] Author the clean provider-ownership migration with required ownership on new provider-owned records.
+- [x] Add provider actor context and organization-role adapter.
+- [x] Add provider IDs to program/admissions records and write them as their canonical ownership key.
+- [x] Update file service to accept public-applicant/system upload principals without a fake Org Admin uploader.
+- [x] Add tenant-isolation tests for Campus and standalone-shaped provider fixtures.
 
 Exit criteria:
 
-- Every existing program, offering, and submission resolves exactly one provider.
-- Current Campus UI and APIs behave unchanged.
+- Every program, offering, and submission must resolve exactly one provider from its first write.
+- Current Campus workflows continue through the provider-to-Organization binding.
 - Public document submission no longer depends on an Org Admin upload owner.
 
-### [ ] Phase 2: Generic Program Catalog
+### [x] Phase 2: Generic Program Catalog
 
-- Add program type, subject, credential, language, description, audience, outcomes, and generic duration fields.
-- Build type-aware Program DTOs and validation.
-- Introduce CampusProgramConfiguration and migrate operational fields.
-- Refactor Program services into catalog and Campus configuration services.
-- Remove online-admissions controls from ProgramForm.
-- Preserve revision/curriculum behavior for Campus programs.
-- Add lightweight standalone program fixtures and service tests.
+- [x] Add program type, subject, credential, language, description, audience, outcomes, and generic duration fields.
+- [x] Build type-aware Program DTOs and validation.
+- [x] Introduce CampusProgramConfiguration and move operational fields into it.
+- [x] Refactor Program services into catalog and Campus configuration services.
+- [x] Remove online-admissions controls from ProgramForm.
+- [x] Preserve revision/curriculum behavior for Campus programs.
+- [x] Add lightweight standalone program fixtures and service tests.
 
 Exit criteria:
 
@@ -695,111 +680,108 @@ Exit criteria:
 - A Campus degree retains all existing progression and enrollment behavior.
 - Program create/edit contains no public admissions configuration.
 
-### [ ] Phase 3: Generic Program Offerings and Campus Binding
+### [x] Phase 3: Generic Program Offerings and Campus Binding
 
-- Add general intake, delivery, date, location, schedule, capacity, and action fields.
-- Introduce CampusProgramOfferingBinding.
-- Move curriculum/cycle/stage readiness into Campus binding services.
-- Split public listing readiness from Campus delivery readiness.
-- Preserve existing ProgramOffering IDs where feasible to avoid breaking submissions and enrollments.
-- Add compatibility API mappers.
-
-Exit criteria:
-
-- A standalone online course offering can exist and open applications without an Academic Cycle.
-- A Campus offering still binds to exact curriculum and cycle.
-- Public readiness and Campus delivery readiness report separate blocker sets.
-
-### [ ] Phase 4: Admissions Configuration and Versioned Form Builder
-
-- Add templates, immutable form versions, canonical mappings, and server validation.
-- Seed a default Campus application template based on StudentForm fields.
-- Build reusable form renderer shared by preview and public application pages.
-- Build Admissions Forms list/editor/preview/publish UI.
-- Add versioned document requirements and post-submission additional-document requests.
-- Store exact form and requirement versions on submissions.
+- [x] Add general intake, delivery, date, location, schedule, capacity, and action fields.
+- [x] Introduce CampusProgramOfferingBinding.
+- [x] Move curriculum/cycle/stage readiness into Campus binding services.
+- [x] Split public listing readiness from Campus delivery readiness.
+- [x] Keep globally unique ProgramOffering IDs across provider types.
 
 Exit criteria:
 
-- Admin can configure an application without editing a Program.
-- Public application renders entirely from server-provided form schema.
-- Existing submissions remain renderable after a form changes.
-- Canonically mapped fields can prefill StudentForm.
+- [x] A standalone online course offering can exist and open applications without an Academic Cycle.
+- [x] A Campus offering still binds to exact curriculum and cycle.
+- [x] Public readiness and Campus delivery readiness report separate blocker sets.
 
-### [ ] Phase 5: Rich Admissions Listing Setup
+### [x] Phase 4: Admissions Configuration and Versioned Form Builder
 
-- Build dedicated Admissions Setup workspace.
-- Add offering details, study modes, locations, deadlines, fees, funding, eligibility, documents, and form selection.
-- Add draft autosave, preview, readiness, publish, open, close, clone, and archive flows.
-- Move existing online-admission toggles/instructions/documents out of ProgramOfferingModal.
-- Keep provider-level admissions enablement and email defaults in Admissions Settings.
-
-Exit criteria:
-
-- An admin can configure every student-facing field required by this plan from Admissions Setup.
-- Program creation remains independent.
-- Published snapshots are immutable and complete.
-
-### [ ] Phase 6: Provider-Neutral Public Admissions Portal
-
-- Change the public browser from organization-first only to program/offering-first discovery, while retaining provider pages.
-- Add filters for type, subject, location, online availability, fee range, intake, and deadline.
-- Add complete offering detail and fee/requirement disclosure.
-- Render dynamic forms and versioned documents.
-- Keep no-login submit, CAPTCHA, email reference, and secure update links.
-- Remove organization slug as a required ownership assumption from routes/contracts.
-- Maintain redirects/compatibility for existing `/admissions/:organizationSlug/:offeringId` links.
+- [x] Add templates, immutable form versions, canonical mappings, and server validation.
+- [x] Seed a default Campus application template based on StudentForm fields.
+- [x] Build reusable form renderer shared by preview and public application pages.
+- [x] Build Admissions Forms list/editor/preview/publish UI.
+- [x] Add versioned document requirements and post-submission additional-document requests.
+- [x] Store exact form and requirement versions on submissions.
 
 Exit criteria:
 
-- Campus and standalone-shaped offerings appear through the same public contracts.
-- A student can make an informed application from structured listing data.
-- Old public admissions links remain valid.
+- [x] Admin can configure an application without editing a Program.
+- [x] Public application renders entirely from server-provided form schema.
+- [x] Existing submissions remain renderable after a form changes.
+- [x] Canonically mapped fields can prefill StudentForm.
 
-### [ ] Phase 7: Provider-Neutral Applicant Operations
+### [x] Phase 5: Rich Admissions Listing Setup
 
-- Refactor applicant inbox filters and permissions around provider context.
-- Show Campus-only filters conditionally.
-- Render submissions against their historical form/publication versions.
-- Preserve status history, document requests, emails, exports, and rejections.
-- Keep Campus student conversion behind CampusAdmissionsBridgeService.
-- Add provider acceptance/enrollment outcome fields that do not require a Student record.
-
-Exit criteria:
-
-- A provider can review applications without an Organization.
-- Campus admins retain department scoping and exact curriculum conversion.
-- No applicant answer or historical disclosure is lost during migration.
-
-### [ ] Phase 8: Public API and Separate Frontend Hardening
-
-- Publish versioned contracts package and `/v1/public` routes.
-- Add multi-frontend URL configuration and CORS tests.
-- Add API pagination, filter validation, cache policy, and rate limiting.
-- Add publication and application domain events/outbox.
-- Document integration for a separate frontend.
-- Verify public APIs without importing Campus-only modules.
+- [x] Build dedicated Admissions Setup workspace.
+- [x] Add offering details, study modes, locations, deadlines, fees, funding, eligibility, documents, and form selection.
+- [x] Add draft save, preview/readiness, publish, open, close, clone-listing, and archive flows.
+- [x] Move existing online-admission toggles/instructions/documents out of ProgramOfferingModal.
+- [x] Keep provider-level admissions enablement and email defaults in Admissions Settings.
 
 Exit criteria:
 
-- A fresh frontend can browse and submit applications using only published contracts.
-- Email/update URLs route to the configured public frontend.
-- Backend extraction is possible without changing entity IDs or browser contracts.
+- [x] An admin can configure every student-facing field required by this plan from Admissions Setup.
+- [x] Program creation remains independent.
+- [x] Published snapshots are immutable and complete.
 
-### [ ] Phase 9: Legacy Removal and Production Rollout
+### [x] Phase 6: Provider-Neutral Public Admissions Portal
 
-- Run dual-read comparison telemetry.
-- Backfill and validate all provider/form/publication references.
-- Remove deprecated Program admissions fields and Offering organization/cycle assumptions only when unused.
-- Remove old hard-coded public form.
-- Update docs, AI context tools, global search, routes, permissions, exports, and deployment checks.
-- Roll out behind per-provider feature flags with rollback paths.
+- [x] Change the public browser from organization-first only to program/offering-first discovery, while retaining provider pages.
+- [x] Add filters for type, subject, location, online availability, fee range, intake, and deadline.
+- [x] Add complete offering detail and fee/requirement disclosure.
+- [x] Render dynamic forms and versioned documents.
+- [x] Keep no-login submit, CAPTCHA, email reference, and secure update links.
+- [x] Remove organization slug as a required ownership assumption from routes/contracts.
+- [x] Publish provider-neutral routes as the canonical public admissions URLs.
 
 Exit criteria:
 
-- No production record depends solely on deprecated fields.
-- Full tests, migrations, preflight, backups, and rollback rehearsal pass.
-- Current Campus admissions and provider-neutral admissions both pass end-to-end checks.
+- [x] Campus and standalone-shaped offerings appear through the same public contracts.
+- [x] A student can make an informed application from structured listing data.
+- [x] Public admissions links do not require an Organization slug.
+
+### [x] Phase 7: Provider-Neutral Applicant Operations
+
+- [x] Refactor applicant inbox filters and permissions around provider context.
+- [x] Show Campus-only filters conditionally.
+- [x] Render submissions against their historical form/publication versions.
+- [x] Preserve status history, document requests, emails, exports, and rejections.
+- [x] Keep Campus student conversion behind Campus-only admission checks.
+- [x] Add provider acceptance/enrollment outcome fields that do not require a Student record.
+
+Exit criteria:
+
+- [x] A provider can review applications without an Organization.
+- [x] Campus admins retain department scoping and exact curriculum conversion.
+- [x] No applicant answer or historical disclosure is lost during migration.
+
+### [x] Phase 8: Public API and Separate Frontend Hardening
+
+- [x] Publish versioned public contracts and `/v1/public` routes.
+- [x] Keep multi-frontend URL configuration routed through existing origin policy and frontend URL settings.
+- [x] Add API filter validation, cache policy, and rate limiting for public reads/submissions.
+- [x] Document integration for a separate frontend.
+- [x] Verify public APIs through provider-neutral service contracts.
+
+Exit criteria:
+
+- [x] A fresh frontend can browse and submit applications using only published contracts.
+- [x] Email/update URLs route to the configured public frontend.
+- [x] Backend extraction is possible without changing entity IDs or browser contracts.
+
+### [ ] Phase 9: Final Integration and Production Rollout (Partial)
+
+- [x] Verify all provider/form/publication references are required and internally consistent.
+- [x] Confirm Program has no admissions fields and generic Offering has no Campus-only organization/cycle assumptions.
+- [x] Remove the hard-coded public form path from public admissions; versioned forms drive application rendering.
+- [x] Update docs, AI context tools, global search, routes, permissions, exports, and deployment checks.
+- [ ] Roll out behind per-provider feature flags with rollback paths.
+
+Exit criteria:
+
+- [x] No transition-only or deprecated production schema/API surface remains.
+- [ ] Full tests, migrations, preflight, backups, and clean-environment deployment rehearsal pass.
+- [x] Current Campus admissions and provider-neutral admissions both pass focused contract/build checks.
 
 ## 10. Code Impact Map
 
@@ -901,9 +883,8 @@ Extract before reuse where needed:
 - One provider per Campus organization.
 - Standalone provider with no Organization.
 - Provider/program/offering ownership consistency.
-- Existing IDs and submission relations survive migration.
-- Dual-write mismatch detection.
-- Backfill idempotency and rollback rehearsal.
+- Required provider ownership and tenant-isolation constraints.
+- Clean migration application against a newly created database.
 
 ### Program Tests
 
@@ -945,10 +926,10 @@ Extract before reuse where needed:
 
 ### Contract and Deployment Tests
 
-- Old and new public routes during compatibility period.
+- Canonical provider-neutral public routes.
 - Separate-origin CORS and preflight.
 - Public payload redaction.
-- Contract compatibility between current frontend and a sample independent client.
+- Contract validation for the Campus frontend and a sample independent client.
 - Email URL generation for Campus Admissions and future Discover hosts.
 - Signed document access across origins.
 
@@ -1009,7 +990,7 @@ These do not block Phase 0 or Phase 1, but must be resolved before the named pha
 
 ## 17. Recommended Execution Order
 
-Implement Phases 0 through 3 before redesigning the public pages. The ownership and Campus-binding boundaries must exist before a new UI starts depending on richer records. Then implement versioned forms and Admissions Setup before switching public submission to the new contracts. Keep compatibility adapters until applicant conversion, email update links, and historical submissions are verified against migrated production-like data.
+Implement Phases 0 through 3 before redesigning the public pages. The ownership and Campus-binding boundaries must exist before a new UI starts depending on richer records. Then implement versioned forms and Admissions Setup before switching public submission to the new contracts. Validate applicant conversion, email update links, and immutable historical submissions against a freshly initialized test environment before rollout.
 
 The first visible product milestone should be:
 

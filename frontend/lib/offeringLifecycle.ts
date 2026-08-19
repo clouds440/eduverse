@@ -2,10 +2,12 @@ import { CohortOfferingStatus, ProgramOfferingStatus, ProgramStageOfferingStatus
 
 const transitions = {
     program: {
-        [ProgramOfferingStatus.DRAFT]: [ProgramOfferingStatus.OPEN, ProgramOfferingStatus.CANCELLED],
+        [ProgramOfferingStatus.DRAFT]: [ProgramOfferingStatus.PUBLISHED, ProgramOfferingStatus.OPEN, ProgramOfferingStatus.CANCELLED, ProgramOfferingStatus.ARCHIVED],
+        [ProgramOfferingStatus.PUBLISHED]: [ProgramOfferingStatus.OPEN, ProgramOfferingStatus.CANCELLED, ProgramOfferingStatus.ARCHIVED],
         [ProgramOfferingStatus.OPEN]: [ProgramOfferingStatus.CLOSED, ProgramOfferingStatus.CANCELLED],
-        [ProgramOfferingStatus.CLOSED]: [],
-        [ProgramOfferingStatus.CANCELLED]: [],
+        [ProgramOfferingStatus.CLOSED]: [ProgramOfferingStatus.ARCHIVED],
+        [ProgramOfferingStatus.CANCELLED]: [ProgramOfferingStatus.ARCHIVED],
+        [ProgramOfferingStatus.ARCHIVED]: [],
     },
     stage: {
         [ProgramStageOfferingStatus.PLANNED]: [ProgramStageOfferingStatus.OPEN, ProgramStageOfferingStatus.CANCELLED],

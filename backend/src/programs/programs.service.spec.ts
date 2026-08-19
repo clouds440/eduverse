@@ -5,8 +5,10 @@ import {
   ProgramProgressionMode,
   ProgramStatus,
   ProgramStructureType,
+  ProgramType,
 } from '@/prisma/prisma-client';
 import { ProgramsService } from './programs.service';
+import { ProgramCatalogService } from './program-catalog.service';
 
 const actor = { id: 'admin-1', role: 'ORG_ADMIN' };
 
@@ -14,10 +16,13 @@ function dto() {
   return {
     name: 'Computer Science',
     code: 'bscs',
-    departmentId: 'department-1',
-    structureType: ProgramStructureType.TERM_BASED,
-    progressionMode: ProgramProgressionMode.SEQUENTIAL,
-    completionMode: ProgramCompletionMode.REQUIREMENTS,
+    programType: ProgramType.DEGREE,
+    campusConfiguration: {
+      departmentId: 'department-1',
+      structureType: ProgramStructureType.TERM_BASED,
+      progressionMode: ProgramProgressionMode.SEQUENTIAL,
+      completionMode: ProgramCompletionMode.REQUIREMENTS,
+    },
     curriculumName: 'BSCS Core',
     curriculumCode: 'BSCS-CORE',
     stages: [
@@ -38,15 +43,14 @@ function dto() {
 function harness() {
   const program = {
     id: 'program-1',
-    organizationId: 'org-1',
-    departmentId: 'department-1',
+    providerId: 'provider-1',
     name: 'Computer Science',
     code: 'BSCS',
     status: ProgramStatus.DRAFT,
-    configurationVersion: 1,
+    slug: 'computer-science',
   };
   const tx = {
-    program: { create: jest.fn().mockResolvedValue(program), updateMany: jest.fn() },
+    program: { create: jest.fn().mockResolvedValue(program), findFirst: jest.fn().mockResolvedValue(null), updateMany: jest.fn() },
     course: {
       findMany: jest.fn().mockResolvedValue([
         { id: 'course-1', creditHours: 3 },
@@ -65,9 +69,11 @@ function harness() {
     $transaction: jest.fn((operation) => operation(tx)),
   };
   const activity = { record: jest.fn() };
-  const service = new ProgramsService(prisma as never, {} as never, activity as never);
+  const providers = { providerIdForOrganization: jest.fn().mockResolvedValue('provider-1') };
+  const catalog = new ProgramCatalogService(prisma as never);
+  const service = new ProgramsService(prisma as never, {} as never, activity as never, providers as never, catalog);
   jest.spyOn(service, 'get').mockResolvedValue(program as never);
-  return { service, prisma, tx, activity };
+  return { service, prisma, tx, activity, providers };
 }
 
 describe('ProgramsService stable curriculum structure', () => {
@@ -76,8 +82,11 @@ describe('ProgramsService stable curriculum structure', () => {
     await service.create('org-1', dto(), actor);
 
     expect(tx.program.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.not.objectContaining({ requiredCycleCount: expect.anything() }),
+      data: expect.objectContaining({
+        providerId: 'provider-1',
+      }),
     }));
+    expect(tx.program.create.mock.calls[0][0].data).not.toHaveProperty('requiredCycleCount');
     expect(tx.programConfigurationRevision.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ configurationSnapshot: expect.objectContaining({ stages: expect.any(Array) }) }),
     }));

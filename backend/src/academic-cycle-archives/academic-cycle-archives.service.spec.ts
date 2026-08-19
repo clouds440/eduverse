@@ -18,7 +18,7 @@ describe('AcademicCycleArchivesService', () => {
     await expect((service as any).preflight('org-1', 'cycle-1')).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.studentStageEnrollment.count).toHaveBeenCalledWith({
       where: {
-        programStageOffering: { programOffering: { academicCycleId: 'cycle-1' } },
+        programStageOffering: { programOffering: { campusBinding: { academicCycleId: 'cycle-1' } } },
         status: StudentStageEnrollmentStatus.IN_PROGRESS,
       },
     });

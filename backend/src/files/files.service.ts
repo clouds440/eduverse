@@ -30,7 +30,8 @@ type RequestingUser = {
 
 type StoredFileRecord = {
   id: string;
-  orgId: string;
+  providerId?: string | null;
+  orgId: string | null;
   entityType: string;
   entityId: string;
   path: string;
@@ -54,6 +55,13 @@ export interface DownloadPayload {
   mimeType: string;
   size?: number;
 }
+
+export type ProviderFileUploadScope = {
+  providerId: string;
+  organizationId: string | null;
+  entityType: string;
+  entityId: string;
+};
 
 type CloudinaryUploadResult = {
   public_id: string;
@@ -90,8 +98,21 @@ export class FilesService {
     return this.persistFile(dto, file, uploadedBy);
   }
 
+  async saveProviderFile(
+    scope: ProviderFileUploadScope,
+    file: Express.Multer.File,
+    uploadedBy: string,
+  ): Promise<UploadedFileInfo> {
+    return this.persistFile({
+      providerId: scope.providerId,
+      orgId: scope.organizationId,
+      entityType: scope.entityType,
+      entityId: scope.entityId,
+    }, file, uploadedBy);
+  }
+
   private async persistFile(
-    dto: FileUploadDto,
+    dto: FileUploadDto & { providerId?: string },
     file: Express.Multer.File,
     uploadedBy: string,
   ): Promise<UploadedFileInfo> {
@@ -105,6 +126,7 @@ export class FilesService {
 
     let record = await this.prisma.file.create({
       data: {
+        providerId: dto.providerId,
         orgId: dto.orgId,
         entityType: dto.entityType,
         entityId: dto.entityId,
@@ -192,6 +214,34 @@ export class FilesService {
     if (!record) return { message: 'File already deleted' };
     if (record.lockedByArchiveId) {
       throw new ForbiddenException('Archived academic files are immutable and cannot be deleted');
+    }
+    if (record.publicId) {
+      await cloudinary.uploader.destroy(record.publicId, {
+        resource_type: this.resolveResourceType(record),
+        type: record.deliveryType || AUTHENTICATED_DELIVERY_TYPE,
+        invalidate: true,
+      });
+    }
+    await this.prisma.file.delete({ where: { id: record.id } });
+    return { message: 'File deleted successfully' };
+  }
+
+  async deleteProviderManagedFile(
+    fileId: string,
+    scope: ProviderFileUploadScope,
+  ): Promise<DeleteFileResult> {
+    const record = await this.prisma.file.findFirst({
+      where: {
+        id: fileId,
+        providerId: scope.providerId,
+        orgId: scope.organizationId,
+        entityType: scope.entityType,
+        entityId: scope.entityId,
+      },
+    });
+    if (!record) return { message: 'File already deleted' };
+    if (record.lockedByArchiveId) {
+      throw new ForbiddenException('Archived files are immutable and cannot be deleted');
     }
     if (record.publicId) {
       await cloudinary.uploader.destroy(record.publicId, {
@@ -321,7 +371,7 @@ export class FilesService {
   }
 
   private async uploadToCloudinary(
-    dto: FileUploadDto,
+    dto: FileUploadDto & { providerId?: string },
     file: Express.Multer.File,
     policy: FilePolicyResult,
   ): Promise<CloudinaryUploadResult> {
@@ -330,7 +380,9 @@ export class FilesService {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          folder: `eduverse/orgs/${this.safeSegment(dto.orgId)}/${this.safeSegment(dto.entityType)}/${this.safeSegment(dto.entityId)}`,
+          folder: dto.providerId
+            ? `eduverse/providers/${this.safeSegment(dto.providerId)}/${this.safeSegment(dto.entityType)}/${this.safeSegment(dto.entityId)}`
+            : `eduverse/orgs/${this.safeSegment(dto.orgId || 'unscoped')}/${this.safeSegment(dto.entityType)}/${this.safeSegment(dto.entityId)}`,
           resource_type: policy.resourceType,
           type: AUTHENTICATED_DELIVERY_TYPE,
           public_id: publicId,

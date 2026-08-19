@@ -19,7 +19,7 @@ function stringValue(value: unknown) {
 }
 
 function prefillFromSubmission(submission: OnlineAdmissionSubmission): Partial<StudentCreateFormData> {
-    const formData = submission.formData || {};
+    const canonical = submission.canonicalData || {};
     return {
         name: submission.applicantName,
         email: '',
@@ -31,14 +31,14 @@ function prefillFromSubmission(submission: OnlineAdmissionSubmission): Partial<S
         programId: submission.programId,
         primaryDepartmentId: submission.departmentId,
         departmentIds: [],
-        fatherName: stringValue(formData.fatherName),
-        gender: stringValue(formData.gender),
+        fatherName: stringValue(canonical['student.fatherName']),
+        gender: stringValue(canonical['student.gender']),
         phone: submission.applicantPhone || '',
-        emergencyContact: stringValue(formData.emergencyContact),
-        bloodGroup: stringValue(formData.bloodGroup),
-        address: stringValue(formData.address),
+        emergencyContact: stringValue(canonical['student.emergencyContact']),
+        bloodGroup: stringValue(canonical['student.bloodGroup']),
+        address: stringValue(canonical['student.address']),
         guardianId: '',
-        guardianRelationship: '',
+        guardianRelationship: stringValue(canonical['guardian.relationship']),
     };
 }
 

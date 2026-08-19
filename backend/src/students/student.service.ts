@@ -66,7 +66,7 @@ export class StudentService {
           ] },
         },
         include: {
-          program: { include: { department: true } },
+          program: { include: { campusConfiguration: { include: { department: true } } } },
           curriculumVersion: {
             include: {
               stages: {
@@ -625,7 +625,7 @@ export class StudentService {
           );
           await prisma.student.update({
             where: { id: student.id },
-            data: { primaryDepartmentId: major.program.departmentId },
+            data: { primaryDepartmentId: major.program.campusConfiguration!.departmentId },
           });
         }
 

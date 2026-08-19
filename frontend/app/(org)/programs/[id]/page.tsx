@@ -61,10 +61,10 @@ export default function ProgramDetailPage() {
         <PageShell>
             <PageHeader
                 title={program.name}
-                description={`${program.department.code} - ${program.department.name}`}
+                description={`${program.campusConfiguration?.department.code} - ${program.campusConfiguration?.department.name}`}
                 icon={GraduationCap}
                 breadcrumbs={[{ label: 'Programs', href: '/programs' }, { label: program.code }]}
-                meta={<div className="flex flex-wrap gap-2"><Badge variant="primary" size="sm">{program.code}</Badge><Badge variant={program.status === ProgramStatus.ACTIVE ? 'success' : 'neutral'} size="sm">{program.status.replaceAll('_', ' ')}</Badge><Badge variant="neutral" size="sm">Revision {program.configurationVersion}</Badge></div>}
+                meta={<div className="flex flex-wrap gap-2"><Badge variant="primary" size="sm">{program.code}</Badge><Badge variant="neutral" size="sm">{program.programType.replaceAll('_', ' ')}</Badge><Badge variant={program.status === ProgramStatus.ACTIVE ? 'success' : 'neutral'} size="sm">{program.status.replaceAll('_', ' ')}</Badge><Badge variant="neutral" size="sm">Revision {program.campusConfiguration?.configurationVersion}</Badge></div>}
                 actions={canManage ? <div className="flex flex-wrap gap-2">
                     {[ProgramStatus.DRAFT, ProgramStatus.PAUSED].includes(program.status) && <Link href={`/programs/${program.id}/edit`}><Button variant="secondary" icon={Pencil}>Edit</Button></Link>}
                     {program.status !== ProgramStatus.ARCHIVED && curriculum && <Button variant="secondary" icon={Plus} onClick={() => { setOfferingToEdit(null); setOfferingOpen(true); }}>New offering</Button>}
@@ -76,7 +76,7 @@ export default function ProgramDetailPage() {
             />
 
             <div className="grid gap-4 md:grid-cols-4">
-                {[['Stages', curriculum?.stages.length || 0], ['Offerings', program._count?.offerings || 0], ['Students', program._count?.studentEnrollments || 0], ['Admissions', program.isVisibleForAdmissions ? 'Visible' : 'Hidden']].map(([label, value]) => (
+                {[['Stages', curriculum?.stages.length || 0], ['Offerings', program._count?.offerings || 0], ['Students', program._count?.studentEnrollments || 0], ['Languages', program.languageCodes.length || 0]].map(([label, value]) => (
                     <div key={String(label)} className="rounded-md border border-border/70 bg-card/65 px-4 py-3"><p className="text-xs font-bold text-muted-foreground">{label}</p><p className="mt-1 text-lg font-black">{value}</p></div>
                 ))}
             </div>
@@ -127,9 +127,9 @@ function OfferingRow({ offering, token, canManage, onEdit }: { offering: Program
     const { data: readiness } = useSWR<ProgramOfferingReadiness>(['program-offering-readiness', offering.id], () => api.programOfferings.readiness(offering.id, token));
     return <div className="space-y-3 px-4 py-3">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center">
-            <div><p className="text-sm font-black">{offering.academicCycle.name}</p><p className="text-xs text-muted-foreground">{offering.academicCycle.code}</p></div>
+            <div><p className="text-sm font-black">{offering.intakeName}</p><p className="text-xs text-muted-foreground">{offering.campusBinding?.academicCycle.code || 'No Campus cycle'}</p></div>
             <p className="text-sm font-semibold text-muted-foreground">{offering.stageOfferings.length} stage {offering.stageOfferings.length === 1 ? 'offering' : 'offerings'}</p>
-            <div className="flex flex-wrap gap-2"><Badge variant={offering.status === 'OPEN' ? 'success' : 'neutral'} size="sm">{offering.status}</Badge>{readiness && <Badge variant={readiness.readyForDelivery ? 'success' : readiness.readyForAdmissions ? 'warning' : 'error'} size="sm">{readiness.readyForDelivery ? 'Delivery ready' : readiness.readyForAdmissions ? 'Admissions ready' : `${readiness.blockers.length} blockers`}</Badge>}</div>
+            <div className="flex flex-wrap gap-2"><Badge variant={offering.status === 'OPEN' ? 'success' : 'neutral'} size="sm">{offering.status}</Badge>{readiness && <><Badge variant={readiness.readyForPublicListing ? 'success' : 'error'} size="sm">{readiness.readyForPublicListing ? 'Public ready' : `${readiness.publicListingBlockers.length} public blockers`}</Badge><Badge variant={readiness.readyForCampusDelivery ? 'success' : 'warning'} size="sm">{readiness.readyForCampusDelivery ? 'Campus ready' : `${readiness.campusDeliveryBlockers.length} delivery blockers`}</Badge></>}</div>
             {canManage && <Button size="icon" variant="ghost" icon={Pencil} title="Edit offering" onClick={onEdit} />}
         </div>
         {offering.stageOfferings.length > 0 && (
@@ -141,7 +141,7 @@ function OfferingRow({ offering, token, canManage, onEdit }: { offering: Program
                             <p className="truncate text-xs font-semibold text-muted-foreground">{stage.programStage.code} - {stage.status}</p>
                         </div>
                         {canManage && (
-                            <Link href={`/cohorts/create?academicCycleId=${offering.academicCycleId}&programStageOfferingId=${stage.id}&returnTo=${encodeURIComponent(`/programs/${offering.programId}`)}`}>
+                            <Link href={`/cohorts/create?academicCycleId=${offering.campusBinding?.academicCycleId || ''}&programStageOfferingId=${stage.id}&returnTo=${encodeURIComponent(`/programs/${offering.programId}`)}`}>
                                 <Button size="sm" variant="secondary" icon={Plus}>Add cohort</Button>
                             </Link>
                         )}

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
@@ -8,7 +8,7 @@ import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-requ
 import { AdminProgramOfferingsService } from './admin-program-offerings.service';
 import {
   CreateProgramOfferingDto,
-  ReplaceOnlineAdmissionDocumentRequirementsDto,
+  CreateProviderLocationDto,
   UpdateProgramOfferingDto,
 } from './dto/program-offering.dto';
 
@@ -28,6 +28,19 @@ export class AdminProgramOfferingsController {
     return this.offerings.list(orgId, req.user, academicCycleId, programId);
   }
 
+  @Get('provider-locations/list')
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  listLocations(@OrgId() orgId: string) {
+    return this.offerings.listLocations(orgId);
+  }
+
+  @Post('provider-locations')
+  @Access(AccessLevel.WRITE)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  createLocation(@OrgId() orgId: string, @Body() dto: CreateProviderLocationDto) {
+    return this.offerings.createLocation(orgId, dto);
+  }
+
   @Get(':id')
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   get(@OrgId() orgId: string, @Param('id') id: string, @Req() req: AuthenticatedRequest) {
@@ -38,12 +51,6 @@ export class AdminProgramOfferingsController {
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   readiness(@OrgId() orgId: string, @Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.offerings.readiness(orgId, id, req.user);
-  }
-
-  @Get(':id/online-admission-requirements')
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
-  onlineAdmissionRequirements(@OrgId() orgId: string, @Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.offerings.listOnlineAdmissionRequirements(orgId, id, req.user);
   }
 
   @Post()
@@ -60,15 +67,4 @@ export class AdminProgramOfferingsController {
     return this.offerings.update(orgId, id, dto, req.user);
   }
 
-  @Put(':id/online-admission-requirements')
-  @Access(AccessLevel.WRITE)
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
-  replaceOnlineAdmissionRequirements(
-    @OrgId() orgId: string,
-    @Param('id') id: string,
-    @Body() dto: ReplaceOnlineAdmissionDocumentRequirementsDto,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    return this.offerings.replaceOnlineAdmissionRequirements(orgId, id, dto.requirements, req.user);
-  }
 }

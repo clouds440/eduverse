@@ -17,6 +17,40 @@ export class PublicOnlineAdmissionsController {
     return this.admissions.listPublicOrganizations(search?.trim() || undefined);
   }
 
+  @Get('offerings')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  offerings(
+    @Query('search') search?: string,
+    @Query('providerSlug') providerSlug?: string,
+    @Query('programType') programType?: string,
+    @Query('subject') subject?: string,
+    @Query('location') location?: string,
+    @Query('onlineOnly') onlineOnly?: string,
+    @Query('minFee') minFee?: string,
+    @Query('maxFee') maxFee?: string,
+    @Query('intake') intake?: string,
+    @Query('deadlineBefore') deadlineBefore?: string,
+  ) {
+    return this.admissions.listPublicOfferings({
+      search: search?.trim() || undefined,
+      providerSlug: providerSlug?.trim() || undefined,
+      programType: programType?.trim() || undefined,
+      subject: subject?.trim() || undefined,
+      location: location?.trim() || undefined,
+      onlineOnly: onlineOnly === 'true',
+      minFee: minFee ? Number(minFee) : undefined,
+      maxFee: maxFee ? Number(maxFee) : undefined,
+      intake: intake?.trim() || undefined,
+      deadlineBefore: deadlineBefore?.trim() || undefined,
+    });
+  }
+
+  @Get('providers/:slug')
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  provider(@Param('slug') slug: string) {
+    return this.admissions.getPublicProvider(slug);
+  }
+
   @Get('organizations/:slug')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   organization(@Param('slug') slug: string) {
@@ -40,9 +74,19 @@ export class PublicOnlineAdmissionsController {
   @UseInterceptors(AnyFilesInterceptor())
   uploadUpdateDocuments(
     @Param('token') token: string,
+    @Body('documentExpiryDates') documentExpiryDates?: string,
     @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
-    return this.admissions.uploadPublicUpdateDocuments(token, files);
+    let expiryDates: Record<string, string> = {};
+    if (documentExpiryDates) {
+      try {
+        const parsed = JSON.parse(documentExpiryDates) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) expiryDates = parsed as Record<string, string>;
+      } catch {
+        expiryDates = {};
+      }
+    }
+    return this.admissions.uploadPublicUpdateDocuments(token, files, expiryDates);
   }
 
   @Post('offerings/:id/submissions')

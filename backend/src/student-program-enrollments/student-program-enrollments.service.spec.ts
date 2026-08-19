@@ -10,11 +10,17 @@ import { StudentProgramEnrollmentsService } from './student-program-enrollments.
 function admissionProgram() {
   return {
     id: 'program-1',
-    organizationId: 'org-1',
-    departmentId: 'department-1',
     status: ProgramStatus.ACTIVE,
-    configurationVersion: 2,
-    department: { id: 'department-1' },
+    campusConfiguration: {
+      organizationId: 'org-1',
+      departmentId: 'department-1',
+      configurationVersion: 2,
+      progressionMode: 'SEQUENTIAL',
+      completionMode: 'REQUIREMENTS',
+      minimumPassingPercentage: 50,
+      minimumAttendancePercentage: null,
+      department: { id: 'department-1' },
+    },
     configurationRevisions: [{ id: 'revision-2', version: 2, checksum: 'curriculum-hash' }],
     curriculumVersions: [{
       id: 'curriculum-1',
@@ -30,7 +36,7 @@ function admissionProgram() {
 }
 
 function harness() {
-  const created = { id: 'major-1', program: { departmentId: 'department-1' } };
+  const created = { id: 'major-1', program: { campusConfiguration: { departmentId: 'department-1' } } };
   const tx = {
     student: { findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }), update: jest.fn() },
     studentProgramEnrollment: {
@@ -78,11 +84,14 @@ describe('StudentProgramEnrollmentsService', () => {
     tx.programOffering.findFirst.mockResolvedValue({
       id: 'offering-2',
       program,
-      curriculumVersion: {
-        id: 'curriculum-2',
-        programConfigurationRevisionId: 'revision-1',
-        stages: [{ id: 'offering-stage-1', sequence: 1, isOptional: false }],
-        programConfigurationRevision: { id: 'revision-1', checksum: 'offering-curriculum-hash' },
+      campusBinding: {
+        organizationId: 'org-1',
+        curriculumVersion: {
+          id: 'curriculum-2',
+          programConfigurationRevisionId: 'revision-1',
+          stages: [{ id: 'offering-stage-1', sequence: 1, isOptional: false }],
+          programConfigurationRevision: { id: 'revision-1', checksum: 'offering-curriculum-hash' },
+        },
       },
     });
 

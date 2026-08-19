@@ -75,6 +75,9 @@ describe('AuthService register', () => {
         create: jest.fn().mockResolvedValue({
           id: 'org-1',
           name: 'Test School',
+          slug: 'test-school',
+          currency: 'USD',
+          contactEmail: 'contact@school.test',
         }),
       },
       user: {
@@ -85,6 +88,12 @@ describe('AuthService register', () => {
       },
       aISubscription: {
         create: jest.fn().mockResolvedValue({ id: 'ai-sub-1' }),
+      },
+      educationProvider: {
+        create: jest.fn().mockResolvedValue({ id: 'provider-1' }),
+      },
+      educationProviderMembership: {
+        create: jest.fn().mockResolvedValue({ id: 'provider-member-1' }),
       },
     };
     prisma.$transaction.mockImplementationOnce(async (callback) =>
@@ -119,6 +128,18 @@ describe('AuthService register', () => {
         data: expect.objectContaining({ slug: 'test-school' }),
       }),
     );
+    expect(tx.educationProvider.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        campusOrganizationId: 'org-1',
+        slug: 'test-school',
+      }),
+    });
+    expect(tx.educationProviderMembership.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        providerId: 'provider-1',
+        userId: 'admin-1',
+      }),
+    });
   });
 });
 

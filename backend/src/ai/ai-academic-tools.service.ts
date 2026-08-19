@@ -150,7 +150,7 @@ export class AIAcademicToolsService implements OnModuleInit {
     ];
     const search = input.search?.trim();
     const where: Prisma.ProgramWhereInput = {
-      organizationId: context.orgId,
+      campusConfiguration: { organizationId: context.orgId },
       ...(input.programId ? { id: input.programId } : {}),
     };
     if (context.role === Role.STUDENT) {
@@ -162,7 +162,9 @@ export class AIAcademicToolsService implements OnModuleInit {
       Object.assign(where, programTextSearch(search));
     } else if (ORG_ACADEMIC_SCOPE_ROLES.has(context.role ?? '')) {
       const scope = await getDepartmentScope(this.prisma, context.orgId, actorForScopedServices(context));
-      if (scope.applies && !scope.all) where.departmentId = { in: scope.departmentIds };
+      if (scope.applies && !scope.all) {
+        where.campusConfiguration = { organizationId: context.orgId, departmentId: { in: scope.departmentIds } };
+      }
       Object.assign(where, programTextSearch(search));
     } else {
       return permissionDenied('Programs are not available for this role.');
@@ -172,7 +174,7 @@ export class AIAcademicToolsService implements OnModuleInit {
       where,
       take: clampLimit(input.limit, 8),
       include: {
-        department: { select: { id: true, name: true, code: true } },
+        campusConfiguration: { include: { department: { select: { id: true, name: true, code: true } } } },
         curriculumVersions: {
           where: { status: 'ACTIVE' },
           take: 2,
@@ -187,9 +189,9 @@ export class AIAcademicToolsService implements OnModuleInit {
         offerings: {
           where: { status: 'OPEN' },
           take: 6,
-          orderBy: { academicCycle: { startDate: 'asc' } },
+          orderBy: { campusBinding: { academicCycle: { startDate: 'asc' } } },
           include: {
-            academicCycle: { select: { id: true, name: true, code: true, startDate: true, endDate: true } },
+            campusBinding: { include: { academicCycle: { select: { id: true, name: true, code: true, startDate: true, endDate: true } } } },
             stageOfferings: { where: { status: 'OPEN' }, include: { programStage: { select: { id: true, name: true, code: true, sequence: true } } } },
           },
         },
@@ -213,7 +215,7 @@ export class AIAcademicToolsService implements OnModuleInit {
           take: 1,
           orderBy: { admittedAt: 'desc' },
           include: {
-            program: { include: { department: true } },
+            program: { include: { campusConfiguration: { include: { department: true } } } },
             curriculumVersion: { include: { stages: { orderBy: { sequence: 'asc' }, include: { courseRequirements: true } } } },
             stageEnrollments: { orderBy: { createdAt: 'asc' } },
           },
@@ -228,14 +230,14 @@ export class AIAcademicToolsService implements OnModuleInit {
           programId: program.id,
           name: program.name,
           code: program.code,
-          department: program.department,
+          department: program.campusConfiguration?.department ?? null,
           status: program.status,
-          structureType: program.structureType,
-          progressionMode: program.progressionMode,
-          completionMode: program.completionMode,
+          structureType: program.campusConfiguration?.structureType ?? null,
+          progressionMode: program.campusConfiguration?.progressionMode ?? null,
+          completionMode: program.campusConfiguration?.completionMode ?? null,
           duration: program.durationValue && program.durationUnit ? `${program.durationValue} ${program.durationUnit.toLowerCase()}` : null,
-          minimumPassingPercentage: program.minimumPassingPercentage,
-          minimumAttendancePercentage: program.minimumAttendancePercentage,
+          minimumPassingPercentage: program.campusConfiguration?.minimumPassingPercentage ?? null,
+          minimumAttendancePercentage: program.campusConfiguration?.minimumAttendancePercentage ?? null,
           curricula: program.curriculumVersions.map((curriculum) => ({
             curriculumId: curriculum.id,
             name: curriculum.name,
@@ -258,7 +260,7 @@ export class AIAcademicToolsService implements OnModuleInit {
           })),
           openOfferings: program.offerings.map((offering) => ({
             offeringId: offering.id,
-            academicCycle: offering.academicCycle,
+            academicCycle: offering.campusBinding?.academicCycle ?? null,
             stages: offering.stageOfferings.map((stage) => stage.programStage),
           })),
           href: `/programs/${program.id}`,

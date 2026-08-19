@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CourseRequirementType, DepartmentScopeType, OrganizationType, ProgramCompletionMode, ProgramProgressionMode, ProgramStructureType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
+import { CourseRequirementType, DepartmentScopeType, OrganizationType, ProgramCompletionMode, ProgramProgressionMode, ProgramStructureType, ProgramType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
 import { isSafeHttpUrl } from './safeUrl';
 
 // --- Shared Patterns ---
@@ -242,13 +242,19 @@ const programStageSchema = z.object({
 export const programSchema = z.object({
     name: z.string().min(1, 'Program name is required'),
     code: entityCodeSchema,
-    departmentId: z.string().min(1, 'Department is required'),
+    programType: z.nativeEnum(ProgramType),
+    subjectArea: z.string().optional(),
+    educationLevel: z.string().optional(),
     description: z.string().optional(),
-    structureType: z.nativeEnum(ProgramStructureType),
-    progressionMode: z.nativeEnum(ProgramProgressionMode),
-    completionMode: z.nativeEnum(ProgramCompletionMode),
-    minimumPassingPercentage: z.number().min(0).max(100).optional(),
-    minimumAttendancePercentage: z.number().min(0).max(100).optional(),
+    languageCodes: z.array(z.string()).optional(),
+    campusConfiguration: z.object({
+        departmentId: z.string().min(1, 'Department is required'),
+        structureType: z.nativeEnum(ProgramStructureType),
+        progressionMode: z.nativeEnum(ProgramProgressionMode),
+        completionMode: z.nativeEnum(ProgramCompletionMode),
+        minimumPassingPercentage: z.number().min(0).max(100).optional(),
+        minimumAttendancePercentage: z.number().min(0).max(100).optional(),
+    }),
     curriculumName: z.string().min(1, 'Curriculum name is required'),
     curriculumCode: entityCodeSchema,
     stages: z.array(programStageSchema).min(1, 'Add at least one program stage'),

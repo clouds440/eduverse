@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Network,
   Settings,
+  ShieldCheck,
   ListChecks,
   GitBranch,
   Trophy,
@@ -148,6 +149,20 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     label: "Online Admissions",
     href: "/online-admissions",
     icon: FileCheck2,
+    roles: ADMIN_ROLES,
+  },
+  {
+    id: "ADMISSIONS_SETUP",
+    label: "Admissions Setup",
+    href: "/admissions-setup",
+    icon: ShieldCheck,
+    roles: ADMIN_ROLES,
+  },
+  {
+    id: "ADMISSION_FORMS",
+    label: "Admission Forms",
+    href: "/admission-forms",
+    icon: ClipboardList,
     roles: ADMIN_ROLES,
   },
   {
@@ -356,6 +371,20 @@ const TEACHER_ITEMS: SidebarItemConfig[] = [
 ];
 
 const MANAGER_ITEMS: SidebarItemConfig[] = [
+  {
+    id: "ADMISSION_FORMS",
+    label: "Admission Forms",
+    href: "/admission-forms",
+    icon: ClipboardList,
+    roles: [Role.ORG_MANAGER],
+  },
+  {
+    id: "ADMISSIONS_SETUP",
+    label: "Admissions Setup",
+    href: "/admissions-setup",
+    icon: ShieldCheck,
+    roles: [Role.ORG_MANAGER],
+  },
   {
     id: "ONLINE_ADMISSIONS",
     label: "Online Admissions",

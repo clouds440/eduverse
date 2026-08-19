@@ -22,6 +22,7 @@ import {
   ProgramProgressionMode,
   ProgramStatus,
   ProgramStructureType,
+  ProgramType,
 } from '@/prisma/prisma-client';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
@@ -87,7 +88,7 @@ export class ProgramStageInputDto {
   courseRequirements: ProgramCourseRequirementInputDto[];
 }
 
-export class CreateProgramDto {
+export class ProgramCatalogInputDto {
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -99,12 +100,76 @@ export class CreateProgramDto {
   code: string;
 
   @IsString()
-  @IsNotEmpty()
-  departmentId: string;
+  @IsOptional()
+  slug?: string;
+
+  @IsEnum(ProgramType)
+  programType: ProgramType;
+
+  @IsString()
+  @IsOptional()
+  subjectArea?: string;
+
+  @IsString()
+  @IsOptional()
+  educationLevel?: string;
+
+  @IsString()
+  @IsOptional()
+  summary?: string;
 
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  languageCodes?: string[];
+
+  @IsString()
+  @IsOptional()
+  credentialType?: string;
+
+  @IsString()
+  @IsOptional()
+  credentialAwarded?: string;
+
+  @IsString()
+  @IsOptional()
+  targetAudience?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  learningOutcomes?: string[];
+
+  @IsString()
+  @IsOptional()
+  entryOverview?: string;
+
+  @IsString()
+  @IsOptional()
+  awardingBody?: string;
+
+  @IsString()
+  @IsOptional()
+  accreditationSummary?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  durationValue?: number;
+
+  @IsEnum(ProgramDurationUnit)
+  @IsOptional()
+  durationUnit?: ProgramDurationUnit;
+}
+
+export class CampusProgramConfigurationInputDto {
+  @IsString()
+  @IsNotEmpty()
+  departmentId: string;
 
   @IsEnum(ProgramStructureType)
   structureType: ProgramStructureType;
@@ -127,26 +192,12 @@ export class CreateProgramDto {
   @IsOptional()
   minimumAttendancePercentage?: number;
 
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  durationValue?: number;
+}
 
-  @IsEnum(ProgramDurationUnit)
-  @IsOptional()
-  durationUnit?: ProgramDurationUnit;
-
-  @IsBoolean()
-  @IsOptional()
-  isVisibleForAdmissions?: boolean;
-
-  @IsString()
-  @IsOptional()
-  admissionsLabel?: string;
-
-  @IsString()
-  @IsOptional()
-  admissionsDescription?: string;
+export class CreateProgramDto extends ProgramCatalogInputDto {
+  @ValidateNested()
+  @Type(() => CampusProgramConfigurationInputDto)
+  campusConfiguration: CampusProgramConfigurationInputDto;
 
   @IsString()
   @IsNotEmpty()
@@ -169,24 +220,10 @@ export class CreateProgramDto {
   stages: ProgramStageInputDto[];
 }
 
-export class UpdateProgramDto {
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  @IsString()
-  @MaxLength(32)
-  @Matches(ENTITY_CODE_PATTERN)
-  @IsOptional()
-  code?: string;
-
+export class CampusProgramConfigurationUpdateDto {
   @IsString()
   @IsOptional()
   departmentId?: string;
-
-  @IsString()
-  @IsOptional()
-  description?: string;
 
   @IsEnum(ProgramStructureType)
   @IsOptional()
@@ -211,6 +248,76 @@ export class UpdateProgramDto {
   @Max(100)
   @IsOptional()
   minimumAttendancePercentage?: number;
+}
+
+export class UpdateProgramDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @MaxLength(32)
+  @Matches(ENTITY_CODE_PATTERN)
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsEnum(ProgramType)
+  @IsOptional()
+  programType?: ProgramType;
+
+  @IsString()
+  @IsOptional()
+  subjectArea?: string;
+
+  @IsString()
+  @IsOptional()
+  educationLevel?: string;
+
+  @IsString()
+  @IsOptional()
+  summary?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  languageCodes?: string[];
+
+  @IsString()
+  @IsOptional()
+  credentialType?: string;
+
+  @IsString()
+  @IsOptional()
+  credentialAwarded?: string;
+
+  @IsString()
+  @IsOptional()
+  targetAudience?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  learningOutcomes?: string[];
+
+  @IsString()
+  @IsOptional()
+  entryOverview?: string;
+
+  @IsString()
+  @IsOptional()
+  awardingBody?: string;
+
+  @IsString()
+  @IsOptional()
+  accreditationSummary?: string;
 
   @IsInt()
   @Min(1)
@@ -221,17 +328,10 @@ export class UpdateProgramDto {
   @IsOptional()
   durationUnit?: ProgramDurationUnit;
 
-  @IsBoolean()
+  @ValidateNested()
+  @Type(() => CampusProgramConfigurationUpdateDto)
   @IsOptional()
-  isVisibleForAdmissions?: boolean;
-
-  @IsString()
-  @IsOptional()
-  admissionsLabel?: string;
-
-  @IsString()
-  @IsOptional()
-  admissionsDescription?: string;
+  campusConfiguration?: CampusProgramConfigurationUpdateDto;
 }
 
 export class ReplaceProgramStructureDto {

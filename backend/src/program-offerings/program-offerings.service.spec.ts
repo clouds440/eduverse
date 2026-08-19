@@ -22,15 +22,11 @@ function program(overrides: Record<string, unknown> = {}) {
     id: 'program-1',
     name: 'Computer Science',
     code: 'BSCS',
-    admissionsLabel: 'BS Computer Science',
-    admissionsDescription: 'Four semester degree',
-    configurationVersion: 3,
-    structureType: ProgramStructureType.TERM_BASED,
+    description: 'Four semester degree',
     durationValue: 2,
     durationUnit: 'YEARS',
-    department: { id: 'department-1', name: 'Computing', code: 'CS' },
     configurationRevisions: [{ id: 'revision-3', version: 3 }],
-    offerings: [{ id: 'offering-1', status: ProgramOfferingStatus.OPEN, academicCycle: sharedCycle }],
+    offerings: [{ id: 'offering-1', status: ProgramOfferingStatus.OPEN, campusBinding: { academicCycle: sharedCycle } }],
     curriculumVersions: [{
       id: 'curriculum-1',
       name: 'BSCS 2026',
@@ -51,7 +47,12 @@ function organization(programs = [program()]) {
     name: 'Example Institute',
     slug: 'example-institute',
     logoUrl: '/logo.png',
-    programs,
+    campusProgramConfigurations: programs.map((item) => ({
+      configurationVersion: 3,
+      structureType: ProgramStructureType.TERM_BASED,
+      department: { id: 'department-1', name: 'Computing', code: 'CS' },
+      program: item,
+    })),
   };
 }
 
@@ -73,7 +74,7 @@ describe('ProgramOfferingsService', () => {
       organization: { name: 'Example Institute', slug: 'example-institute', logoUrl: '/logo.png' },
       offerings: [{
         programId: 'program-1',
-        name: 'BS Computer Science',
+        name: 'Computer Science',
         code: 'BSCS',
         description: 'Four semester degree',
         department: { id: 'department-1', name: 'Computing', code: 'CS' },
@@ -107,7 +108,7 @@ describe('ProgramOfferingsService', () => {
     const second = program({
       id: 'program-2',
       code: 'BBA',
-      offerings: [{ id: 'offering-2', status: ProgramOfferingStatus.OPEN, academicCycle: sharedCycle }],
+      offerings: [{ id: 'offering-2', status: ProgramOfferingStatus.OPEN, campusBinding: { academicCycle: sharedCycle } }],
     });
     const prisma = { organization: { findFirst: jest.fn().mockResolvedValue(organization([program(), second])) } };
     const result = await new ProgramOfferingsService(prisma as never).list('example-institute');

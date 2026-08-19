@@ -28,61 +28,54 @@ export class ProgramOfferingsService {
         name: true,
         slug: true,
         logoUrl: true,
-        programs: {
-          where: {
-            status: ProgramStatus.ACTIVE,
-            isVisibleForAdmissions: true,
-            department: { isActive: true },
-          },
-          orderBy: [{ admissionsSortOrder: 'asc' }, { name: 'asc' }],
+        campusProgramConfigurations: {
+          where: { program: { status: ProgramStatus.ACTIVE } },
+          orderBy: { program: { name: 'asc' } },
           select: {
-            id: true,
-            name: true,
-            code: true,
-            admissionsLabel: true,
-            admissionsDescription: true,
             configurationVersion: true,
             structureType: true,
-            durationValue: true,
-            durationUnit: true,
             department: { select: { id: true, name: true, code: true } },
-            configurationRevisions: {
-              orderBy: { version: 'desc' },
-              select: { id: true, version: true },
-            },
-            offerings: {
-              where: { status: ProgramOfferingStatus.OPEN },
-              orderBy: { academicCycle: { startDate: 'asc' } },
-              select: {
-                id: true,
-                academicCycle: {
-                  select: {
-                    id: true,
-                    name: true,
-                    code: true,
-                    startDate: true,
-                    endDate: true,
-                    status: true,
-                  },
-                },
-              },
-            },
-            curriculumVersions: {
-              where: {
-                status: CurriculumStatus.ACTIVE,
-                isDefaultForAdmissions: true,
-              },
+            program: {
               select: {
                 id: true,
                 name: true,
                 code: true,
-                programConfigurationRevisionId: true,
-                stages: {
+                description: true,
+                durationValue: true,
+                durationUnit: true,
+                configurationRevisions: {
+                  orderBy: { version: 'desc' },
+                  select: { id: true, version: true },
+                },
+                offerings: {
+                  where: { status: ProgramOfferingStatus.OPEN, campusBinding: { isNot: null } },
+                  orderBy: { campusBinding: { academicCycle: { startDate: 'asc' } } },
                   select: {
                     id: true,
-                    sequence: true,
-                    isOptional: true,
-                    _count: { select: { courseRequirements: true } },
+                    campusBinding: {
+                      select: {
+                        academicCycle: {
+                          select: { id: true, name: true, code: true, startDate: true, endDate: true, status: true },
+                        },
+                      },
+                    },
+                  },
+                },
+                curriculumVersions: {
+                  where: { status: CurriculumStatus.ACTIVE, isDefaultForAdmissions: true },
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    programConfigurationRevisionId: true,
+                    stages: {
+                      select: {
+                        id: true,
+                        sequence: true,
+                        isOptional: true,
+                        _count: { select: { courseRequirements: true } },
+                      },
+                    },
                   },
                 },
               },
@@ -93,9 +86,10 @@ export class ProgramOfferingsService {
     });
     if (!organization) throw new NotFoundException('Organization not found');
 
-    const offerings = organization.programs.flatMap((program) => {
+    const offerings = organization.campusProgramConfigurations.flatMap((configuration) => {
+      const program = configuration.program;
       const revision = program.configurationRevisions.find(
-        (row) => row.version === program.configurationVersion,
+        (row) => row.version === configuration.configurationVersion,
       );
       const curriculum = program.curriculumVersions.find(
         (row) => row.programConfigurationRevisionId === revision?.id,
@@ -111,24 +105,25 @@ export class ProgramOfferingsService {
       const seenCycles = new Set<string>();
       const eligibleEntryCycles = program.offerings.flatMap((association) => {
         if (
-          seenCycles.has(association.academicCycle.id)
-          || !ELIGIBLE_ENTRY_CYCLE_STATUSES.has(association.academicCycle.status)
+          !association.campusBinding
+          || seenCycles.has(association.campusBinding.academicCycle.id)
+          || !ELIGIBLE_ENTRY_CYCLE_STATUSES.has(association.campusBinding.academicCycle.status)
         ) return [];
-        seenCycles.add(association.academicCycle.id);
+        seenCycles.add(association.campusBinding.academicCycle.id);
         return [{
           programOfferingId: association.id,
-          academicCycle: association.academicCycle,
+          academicCycle: association.campusBinding.academicCycle,
         }];
       });
 
       return [{
         programId: program.id,
-        name: program.admissionsLabel || program.name,
+        name: program.name,
         code: program.code,
-        description: program.admissionsDescription,
-        department: program.department,
+        description: program.description,
+        department: configuration.department,
         requiredStageCount: curriculum.stages.length,
-        structureType: program.structureType,
+        structureType: configuration.structureType,
         duration: program.durationValue && program.durationUnit
           ? { value: program.durationValue, unit: program.durationUnit }
           : null,

@@ -852,7 +852,7 @@ export class ImportsService {
         offerings: {
           where: { status: 'OPEN' },
           take: 1,
-          select: { programOffering: { select: { academicCycle: { select: { code: true } } } } },
+          select: { programOffering: { select: { campusBinding: { select: { academicCycle: { select: { code: true } } } } } } },
         },
       },
       orderBy: [{ curriculumVersion: { program: { code: 'asc' } } }, { sequence: 'asc' }],
@@ -861,7 +861,7 @@ export class ImportsService {
     return stages.map((stage) => ({
       programCode: stage.curriculumVersion.program.code,
       curriculumCode: stage.curriculumVersion.code,
-      academicCycleCode: stage.offerings[0]?.programOffering.academicCycle.code || '',
+      academicCycleCode: stage.offerings[0]?.programOffering.campusBinding?.academicCycle.code || '',
       stageCode: stage.code,
     }));
   }
@@ -914,7 +914,7 @@ export class ImportsService {
           },
         },
         ...(!options.requireAdmissionEligible
-          ? { offerings: { some: { status: 'OPEN', programOffering: { academicCycleId } } } }
+          ? { offerings: { some: { status: 'OPEN', programOffering: { campusBinding: { academicCycleId } } } } }
           : {}),
       },
       select: {
@@ -923,11 +923,11 @@ export class ImportsService {
         curriculumVersion: {
           select: {
             programConfigurationRevision: { select: { version: true } },
-            program: { select: { id: true, configurationVersion: true } },
+            program: { select: { id: true, campusConfiguration: { select: { configurationVersion: true } } } },
           },
         },
         offerings: academicCycleId
-          ? { where: { status: 'OPEN', programOffering: { academicCycleId } }, select: { id: true } }
+          ? { where: { status: 'OPEN', programOffering: { campusBinding: { academicCycleId } } }, select: { id: true } }
           : false,
         courseRequirements: options.courseId
           ? { where: { courseId: options.courseId }, select: { id: true } }
@@ -940,7 +940,7 @@ export class ImportsService {
         message: 'Program, curriculum, and stage do not form an active mapping for the selected cycle',
       });
     }
-    if (stage.curriculumVersion.programConfigurationRevision.version !== stage.curriculumVersion.program.configurationVersion) {
+    if (stage.curriculumVersion.programConfigurationRevision.version !== stage.curriculumVersion.program.campusConfiguration?.configurationVersion) {
       throw new BadRequestException({ field: 'curriculumCode', message: 'Curriculum is not part of the program current configuration' });
     }
     if (options.courseId) {

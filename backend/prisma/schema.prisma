@@ -74,8 +74,8 @@ model Organization {
   aiToolCallLogs                            AIToolCallLog[]
   aiConversations                           AIConversation[]
   communicationBlocks                       UserCommunicationBlock[]
-  programs                                  Program[]
-  programOfferings                          ProgramOffering[]
+  campusProgramConfigurations               CampusProgramConfiguration[]
+  campusProgramOfferingBindings             CampusProgramOfferingBinding[]
   programStageOfferings                     ProgramStageOffering[]
   programConfigurationRevisions             ProgramConfigurationRevision[]
   curriculumVersions                        CurriculumVersion[]
@@ -90,56 +90,137 @@ model Organization {
   studentProgressionDecisions               StudentProgressionDecision[]
   progressionBulkOperations                 ProgressionBulkOperation[]
   gradeAnswerbookAttachments                GradeAnswerbookAttachment[]
-  onlineAdmissionDocumentRequirements       OnlineAdmissionDocumentRequirement[]
   onlineAdmissionSubmissions                OnlineAdmissionSubmission[]
+  additionalDocumentRequests                AdditionalDocumentRequest[]
   onlineAdmissionDocumentUploads            OnlineAdmissionDocumentUpload[]
   academicCycleArchives                     AcademicCycleArchive[]
   academicCycleArchiveSections              AcademicCycleArchiveSection[]
   academicCycleArchiveSectionProgramIndexes AcademicCycleArchiveSectionProgramIndex[]
   academicCycleArchiveStudentIndexes        AcademicCycleArchiveStudentIndex[]
   courseResultSchemes                       CourseResultScheme[]
+  educationProvider                         EducationProvider?
 
   @@index([status])
   @@index([type])
 }
 
+enum EducationProviderKind {
+  INSTITUTION
+  ACADEMY
+  TRAINING_PROVIDER
+  ONLINE_PROVIDER
+  EDUCATOR
+  OTHER
+}
+
+enum EducationProviderStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum EducationProviderRole {
+  OWNER
+  ADMIN
+  PROGRAM_MANAGER
+  ADMISSIONS_MANAGER
+  REVIEWER
+  VIEWER
+}
+
+enum EducationProviderMembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model EducationProvider {
+  id                   String                  @id @default(uuid())
+  kind                 EducationProviderKind
+  displayName          String
+  slug                 String                  @unique
+  status               EducationProviderStatus @default(DRAFT)
+  campusOrganizationId String?                 @unique
+  defaultCurrency      String?
+  timezone             String?
+  contactEmail         String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  campusOrganization                  Organization?                        @relation(fields: [campusOrganizationId], references: [id], onDelete: Restrict)
+  memberships                         EducationProviderMembership[]
+  programs                            Program[]
+  programOfferings                    ProgramOffering[]
+  locations                           ProviderLocation[]
+  admissionApplicationTemplates       AdmissionApplicationTemplate[]
+  programOfferingApplicationConfigs   ProgramOfferingApplicationConfig[]
+  programOfferingPublications         ProgramOfferingPublication[]
+  admissionsDomainEvents              AdmissionsDomainEvent[]
+  additionalDocumentRequests          AdditionalDocumentRequest[]
+  onlineAdmissionSubmissions          OnlineAdmissionSubmission[]
+  onlineAdmissionDocumentUploads      OnlineAdmissionDocumentUpload[]
+  files                               File[]
+
+  @@index([status])
+  @@index([kind])
+}
+
+model EducationProviderMembership {
+  id         String                            @id @default(uuid())
+  providerId String
+  userId     String
+  role       EducationProviderRole
+  status     EducationProviderMembershipStatus @default(ACTIVE)
+  createdAt  DateTime                          @default(now())
+  updatedAt  DateTime                          @updatedAt
+
+  provider EducationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, userId])
+  @@index([userId, status])
+  @@index([providerId, role, status])
+}
+
 model User {
-  id                                 String               @id @default(uuid())
-  email                              String               @unique
+  id                                 String                        @id @default(uuid())
+  email                              String                        @unique
   contactEmail                       String?
   contactEmailVerifiedAt             DateTime?
   contactEmailVerificationCodeHash   String?
   contactEmailVerificationExpiresAt  DateTime?
-  contactEmailVerificationAttempts   Int                  @default(0)
+  contactEmailVerificationAttempts   Int                           @default(0)
   lastContactEmailVerificationSentAt DateTime?
   password                           String
-  role                               Role                 @default(SUPER_ADMIN)
-  status                             UserStatus           @default(ACTIVE)
-  isFirstLogin                       Boolean              @default(true)
+  role                               Role                          @default(SUPER_ADMIN)
+  status                             UserStatus                    @default(ACTIVE)
+  isFirstLogin                       Boolean                       @default(true)
   organizationId                     String?
-  createdAt                          DateTime             @default(now())
-  updatedAt                          DateTime             @updatedAt
+  createdAt                          DateTime                      @default(now())
+  updatedAt                          DateTime                      @updatedAt
   name                               String?
   phone                              String?
   avatarUrl                          String?
   avatarUpdatedAt                    DateTime?
-  departmentScopeType                DepartmentScopeType  @default(ALL)
+  departmentScopeType                DepartmentScopeType           @default(ALL)
   studentProfile                     Student?
   teacherProfile                     Teacher?
   guardianProfile                    GuardianProfile?
   settings                           UserSettings?
   subAdminDepartments                SubAdminDepartment[]
-  organization                       Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization                       Organization?                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sessions                           Session[]
   pendingLogins                      PendingLogin[]
-  createdMails                       Mail[]               @relation("CreatedMails")
-  assignedMails                      Mail[]               @relation("AssignedMails")
-  participatingMails                 Mail[]               @relation("MailParticipants")
-  sentMessages                       MailMessage[]        @relation("SentMessages")
-  performedActions                   MailActionLog[]      @relation("PerformedActions")
+  createdMails                       Mail[]                        @relation("CreatedMails")
+  assignedMails                      Mail[]                        @relation("AssignedMails")
+  participatingMails                 Mail[]                        @relation("MailParticipants")
+  sentMessages                       MailMessage[]                 @relation("SentMessages")
+  performedActions                   MailActionLog[]               @relation("PerformedActions")
   viewedMails                        MailUserView[]
-  reviewedOnlineAdmissionSubmissions OnlineAdmissionSubmission[] @relation("OnlineAdmissionSubmissionReviewers")
+  reviewedOnlineAdmissionSubmissions OnlineAdmissionSubmission[]   @relation("OnlineAdmissionSubmissionReviewers")
   onlineAdmissionStatusEvents        OnlineAdmissionStatusEvent[]
+  educationProviderMemberships       EducationProviderMembership[]
 
   createdChats                          Chat[]                          @relation("CreatedChats")
   chatParticipations                    ChatParticipant[]               @relation("ChatParticipations")
@@ -554,16 +635,16 @@ model Department {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  buildingDepartments      BuildingDepartment[]
-  courses                  Course[]
-  teacherDepartments       TeacherDepartment[]
-  studentPrimaryLinks      Student[]                 @relation("StudentPrimaryDepartment")
-  studentDepartments       StudentDepartment[]
-  managerDepartments       ManagerDepartment[]
-  subAdminDepartments      SubAdminDepartment[]
-  academicEventDepartments AcademicEventDepartment[]
-  programs                 Program[]
+  organization               Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  buildingDepartments        BuildingDepartment[]
+  courses                    Course[]
+  teacherDepartments         TeacherDepartment[]
+  studentPrimaryLinks        Student[]                   @relation("StudentPrimaryDepartment")
+  studentDepartments         StudentDepartment[]
+  managerDepartments         ManagerDepartment[]
+  subAdminDepartments        SubAdminDepartment[]
+  academicEventDepartments   AcademicEventDepartment[]
+  campusProgramConfigurations CampusProgramConfiguration[]
   onlineAdmissionSubmissions OnlineAdmissionSubmission[]
 
   @@unique([organizationId, name])
@@ -750,40 +831,40 @@ model GpaPolicy {
 }
 
 model Section {
-  id                     String                        @id @default(uuid())
-  organizationId         String
-  name                   String
-  code                   String
-  color                  String                        @default("#3B82F6")
-  componentType          CourseResultComponentType      @default(OTHER)
-  room                   String?
-  defaultRoomId          String?
-  courseId               String
-  academicCycleId        String
-  status                 SectionLifecycleStatus
-  createdAt              DateTime                      @default(now())
-  updatedAt              DateTime                      @updatedAt
-  enrollments            Enrollment[]
-  organization           Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  defaultRoom            Room?                         @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
-  academicCycle          AcademicCycle                 @relation(fields: [academicCycleId], references: [id])
-  teachers               Teacher[]                     @relation("SectionToTeacher")
-  schedules              SectionSchedule[]
-  attendanceSessions     AttendanceSession[]
-  attendanceTransfersOut AttendanceRecord[]            @relation("AttendanceTransferSourceSection")
-  assessments            Assessment[]
-  assessmentExemptionsOut AssessmentExemption[]         @relation("AssessmentExemptionSourceSection")
-  evaluationWindows      EvaluationWindow[]
-  evaluations            Evaluation[]
-  courseMaterials        CourseMaterial[]
-  enrollmentHistories    EnrollmentHistory[]
-  preferenceOptions      PreferenceWindowOption[]      @relation("PreferenceOptionSection")
-  preferenceAudiences    PreferenceWindowAudience[]    @relation("PreferenceAudienceSection")
-  programMappings        SectionProgramMapping[]
-  cohortOfferingSections CohortOfferingSection[]
-  archiveSections        AcademicCycleArchiveSection[]
-  resultComponentLinks   CourseResultComponentSection[]
+  id                      String                         @id @default(uuid())
+  organizationId          String
+  name                    String
+  code                    String
+  color                   String                         @default("#3B82F6")
+  componentType           CourseResultComponentType      @default(OTHER)
+  room                    String?
+  defaultRoomId           String?
+  courseId                String
+  academicCycleId         String
+  status                  SectionLifecycleStatus
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  enrollments             Enrollment[]
+  organization            Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course                  Course                         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  defaultRoom             Room?                          @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
+  academicCycle           AcademicCycle                  @relation(fields: [academicCycleId], references: [id])
+  teachers                Teacher[]                      @relation("SectionToTeacher")
+  schedules               SectionSchedule[]
+  attendanceSessions      AttendanceSession[]
+  attendanceTransfersOut  AttendanceRecord[]             @relation("AttendanceTransferSourceSection")
+  assessments             Assessment[]
+  assessmentExemptionsOut AssessmentExemption[]          @relation("AssessmentExemptionSourceSection")
+  evaluationWindows       EvaluationWindow[]
+  evaluations             Evaluation[]
+  courseMaterials         CourseMaterial[]
+  enrollmentHistories     EnrollmentHistory[]
+  preferenceOptions       PreferenceWindowOption[]       @relation("PreferenceOptionSection")
+  preferenceAudiences     PreferenceWindowAudience[]     @relation("PreferenceAudienceSection")
+  programMappings         SectionProgramMapping[]
+  cohortOfferingSections  CohortOfferingSection[]
+  archiveSections         AcademicCycleArchiveSection[]
+  resultComponentLinks    CourseResultComponentSection[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -821,44 +902,44 @@ model Enrollment {
 }
 
 model Student {
-  id                            String                             @id @default(uuid())
-  userId                        String                             @unique
-  organizationId                String
-  registrationNumber            String                             @default("TEMP_ID")
-  rollNumber                    String                             @default("TEMP_ROLL")
-  fatherName                    String?
-  age                           Int?
-  address                       String?
-  updatedBy                     String?
-  createdAt                     DateTime                           @default(now())
-  updatedAt                     DateTime                           @updatedAt
-  admissionDate                 DateTime                           @default(now())
-  bloodGroup                    String?
-  primaryDepartmentId           String?
-  emergencyContact              String?
-  gender                        String                             @default("Unassigned")
-  graduationDate                DateTime?
-  status                        StudentStatus                      @default(ACTIVE)
-  enrollments                   Enrollment[]
-  organization                  Organization                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  primaryDepartment             Department?                        @relation("StudentPrimaryDepartment", fields: [primaryDepartmentId], references: [id], onDelete: SetNull)
-  user                          User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studentDepartments            StudentDepartment[]
-  guardianLinks                 GuardianStudent[]
-  grades                        Grade[]
-  assessmentExemptions          AssessmentExemption[]
-  evaluations                   Evaluation[]
-  submissions                   Submission[]
-  preferenceSubmissions         PreferenceSubmission[]
-  attendanceRecords             AttendanceRecord[]
-  enrollmentHistories           EnrollmentHistory[]
-  cohortMemberships             StudentCohortMembership[]
-  financialStructures           FinancialStructure[]
-  financialStructureAssignments FinancialStructureAssignment[]
-  financialEntries              FinancialEntry[]
-  programEnrollments            StudentProgramEnrollment[]
-  archiveStudentIndexes         AcademicCycleArchiveStudentIndex[]
-  admittedOnlineAdmissionSubmission OnlineAdmissionSubmission? @relation("OnlineAdmissionAdmittedStudent")
+  id                                String                             @id @default(uuid())
+  userId                            String                             @unique
+  organizationId                    String
+  registrationNumber                String                             @default("TEMP_ID")
+  rollNumber                        String                             @default("TEMP_ROLL")
+  fatherName                        String?
+  age                               Int?
+  address                           String?
+  updatedBy                         String?
+  createdAt                         DateTime                           @default(now())
+  updatedAt                         DateTime                           @updatedAt
+  admissionDate                     DateTime                           @default(now())
+  bloodGroup                        String?
+  primaryDepartmentId               String?
+  emergencyContact                  String?
+  gender                            String                             @default("Unassigned")
+  graduationDate                    DateTime?
+  status                            StudentStatus                      @default(ACTIVE)
+  enrollments                       Enrollment[]
+  organization                      Organization                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryDepartment                 Department?                        @relation("StudentPrimaryDepartment", fields: [primaryDepartmentId], references: [id], onDelete: SetNull)
+  user                              User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentDepartments                StudentDepartment[]
+  guardianLinks                     GuardianStudent[]
+  grades                            Grade[]
+  assessmentExemptions              AssessmentExemption[]
+  evaluations                       Evaluation[]
+  submissions                       Submission[]
+  preferenceSubmissions             PreferenceSubmission[]
+  attendanceRecords                 AttendanceRecord[]
+  enrollmentHistories               EnrollmentHistory[]
+  cohortMemberships                 StudentCohortMembership[]
+  financialStructures               FinancialStructure[]
+  financialStructureAssignments     FinancialStructureAssignment[]
+  financialEntries                  FinancialEntry[]
+  programEnrollments                StudentProgramEnrollment[]
+  archiveStudentIndexes             AcademicCycleArchiveStudentIndex[]
+  admittedOnlineAdmissionSubmission OnlineAdmissionSubmission?         @relation("OnlineAdmissionAdmittedStudent")
 
   @@index([organizationId])
   @@index([primaryDepartmentId])
@@ -1051,30 +1132,33 @@ model MailActionLog {
 // ────────────────────────────────────────────────────────────────────────────────
 
 model File {
-  id                        String                     @id @default(uuid())
-  orgId                     String
-  entityType                String
-  entityId                  String
-  path                      String
-  publicId                  String?
-  filename                  String
-  mimeType                  String
-  size                      Int
-  uploadedBy                String
-  resourceType              String                     @default("raw")
-  deliveryType              String                     @default("authenticated")
-  fileKind                  String                     @default("document")
-  extension                 String?
-  sha256                    String?
-  scanStatus                String                     @default("PASSED")
-  lockedAt                  DateTime?
-  lockedByArchiveId         String?
-  createdAt                 DateTime                   @default(now())
-  gradeAnswerbookAttachment GradeAnswerbookAttachment?
+  id                            String                         @id @default(uuid())
+  providerId                    String?
+  orgId                         String?
+  entityType                    String
+  entityId                      String
+  path                          String
+  publicId                      String?
+  filename                      String
+  mimeType                      String
+  size                          Int
+  uploadedBy                    String
+  resourceType                  String                         @default("raw")
+  deliveryType                  String                         @default("authenticated")
+  fileKind                      String                         @default("document")
+  extension                     String?
+  sha256                        String?
+  scanStatus                    String                         @default("PASSED")
+  lockedAt                      DateTime?
+  lockedByArchiveId             String?
+  createdAt                     DateTime                       @default(now())
+  gradeAnswerbookAttachment     GradeAnswerbookAttachment?
   onlineAdmissionDocumentUpload OnlineAdmissionDocumentUpload?
-  lockedByArchive           AcademicCycleArchive?      @relation(fields: [lockedByArchiveId], references: [id], onDelete: Restrict)
+  lockedByArchive               AcademicCycleArchive?          @relation(fields: [lockedByArchiveId], references: [id], onDelete: Restrict)
+  provider                      EducationProvider?             @relation(fields: [providerId], references: [id], onDelete: Restrict)
 
   @@index([entityType, entityId])
+  @@index([providerId, entityType, entityId])
   @@index([sha256])
   @@index([lockedByArchiveId])
 }
@@ -2130,16 +2214,16 @@ model AttendanceSession {
 }
 
 model AttendanceRecord {
-  id                                String                 @id @default(uuid())
-  sessionId                         String
-  studentId                         String
-  status                            AttendanceStatus
-  source                            AttendanceRecordSource @default(MANUAL)
-  note                              String?
-  transferredFromSectionId          String?
-  transferredFromAttendancePercent  Float?
-  createdAt                         DateTime               @default(now())
-  updatedAt                         DateTime               @updatedAt
+  id                               String                 @id @default(uuid())
+  sessionId                        String
+  studentId                        String
+  status                           AttendanceStatus
+  source                           AttendanceRecordSource @default(MANUAL)
+  note                             String?
+  transferredFromSectionId         String?
+  transferredFromAttendancePercent Float?
+  createdAt                        DateTime               @default(now())
+  updatedAt                        DateTime               @updatedAt
 
   session                AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   student                Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -2245,28 +2329,28 @@ model AcademicCycle {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  gpaPolicy           GpaPolicy?             @relation(fields: [gpaPolicyId], references: [id], onDelete: SetNull)
-  cohorts             Cohort[]
-  sections            Section[]
-  enrollments         Enrollment[]
-  enrollmentHistories EnrollmentHistory[]
-  cohortOfferings     CohortOffering[]
-  assessments         Assessment[]
-  grades              Grade[]
-  assessmentExemptions AssessmentExemption[]
-  submissions         Submission[]
-  attendanceSessions  AttendanceSession[]
-  courseMaterials     CourseMaterial[]
-  evaluationWindows   EvaluationWindow[]
-  evaluations         Evaluation[]
-  sectionSchedules    SectionSchedule[]
-  preferenceWindows   PreferenceWindow[]
-  programOfferings    ProgramOffering[]
+  organization               Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  gpaPolicy                  GpaPolicy?                  @relation(fields: [gpaPolicyId], references: [id], onDelete: SetNull)
+  cohorts                    Cohort[]
+  sections                   Section[]
+  enrollments                Enrollment[]
+  enrollmentHistories        EnrollmentHistory[]
+  cohortOfferings            CohortOffering[]
+  assessments                Assessment[]
+  grades                     Grade[]
+  assessmentExemptions       AssessmentExemption[]
+  submissions                Submission[]
+  attendanceSessions         AttendanceSession[]
+  courseMaterials            CourseMaterial[]
+  evaluationWindows          EvaluationWindow[]
+  evaluations                Evaluation[]
+  sectionSchedules           SectionSchedule[]
+  preferenceWindows          PreferenceWindow[]
+  campusProgramOfferingBindings CampusProgramOfferingBinding[]
   onlineAdmissionSubmissions OnlineAdmissionSubmission[]
-  archives            AcademicCycleArchive[] @relation("AcademicCycleArchives")
-  currentArchive      AcademicCycleArchive?  @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
-  courseResultSchemes CourseResultScheme[]
+  archives                   AcademicCycleArchive[]      @relation("AcademicCycleArchives")
+  currentArchive             AcademicCycleArchive?       @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
+  courseResultSchemes        CourseResultScheme[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -2398,6 +2482,20 @@ enum ProgramStatus {
   ARCHIVED
 }
 
+enum ProgramType {
+  DEGREE
+  DIPLOMA
+  CERTIFICATE
+  COURSE
+  SHORT_COURSE
+  BOOTCAMP
+  WORKSHOP
+  TUTORING
+  COACHING
+  CLASS
+  OTHER
+}
+
 enum ProgramStructureType {
   GRADE_BASED
   TERM_BASED
@@ -2428,9 +2526,32 @@ enum ProgramDurationUnit {
 
 enum ProgramOfferingStatus {
   DRAFT
+  PUBLISHED
   OPEN
   CLOSED
   CANCELLED
+  ARCHIVED
+}
+
+enum ProgramOfferingDeliveryMode {
+  ON_CAMPUS
+  ONLINE
+  HYBRID
+  FLEXIBLE
+}
+
+enum ProgramOfferingAttendanceMode {
+  FULL_TIME
+  PART_TIME
+  SELF_PACED
+  SCHEDULED
+  OTHER
+}
+
+enum ProgramOfferingAction {
+  APPLY
+  ENROLL_INTEREST
+  REQUEST_INFO
 }
 
 enum ProgramStageOfferingStatus {
@@ -2448,6 +2569,19 @@ enum OnlineAdmissionSubmissionStatus {
   ADMITTED
   REJECTED
   WITHDRAWN
+}
+
+enum AdmissionApplicationVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AdditionalDocumentRequestStatus {
+  REQUESTED
+  SUBMITTED
+  ACCEPTED
+  WAIVED
 }
 
 enum CohortOfferingStatus {
@@ -2523,44 +2657,69 @@ enum ArchiveProgramSourceKind {
 }
 
 model Program {
+  id                   String              @id @default(uuid())
+  providerId           String
+  name                 String
+  code                 String
+  slug                 String
+  programType          ProgramType
+  subjectArea          String?
+  educationLevel       String?
+  summary              String?
+  description          String?
+  languageCodes        String[]            @default([])
+  credentialType       String?
+  credentialAwarded    String?
+  targetAudience       String?
+  learningOutcomes     Json?
+  entryOverview        String?
+  awardingBody         String?
+  accreditationSummary String?
+  durationValue        Int?
+  durationUnit         ProgramDurationUnit?
+  status               ProgramStatus       @default(DRAFT)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  archivedAt           DateTime?
+  archivedById         String?
+  archiveReason        String?
+
+  provider                   EducationProvider              @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  campusConfiguration        CampusProgramConfiguration?
+  offerings                  ProgramOffering[]
+  configurationRevisions     ProgramConfigurationRevision[]
+  curriculumVersions         CurriculumVersion[]
+  studentEnrollments         StudentProgramEnrollment[]
+  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
+
+  @@unique([providerId, code])
+  @@unique([providerId, slug])
+  @@index([providerId, status])
+  @@index([programType, status])
+  @@index([subjectArea])
+  @@index([status])
+}
+
+model CampusProgramConfiguration {
   id                          String                 @id @default(uuid())
+  programId                   String                 @unique
   organizationId              String
   departmentId                String
-  name                        String
-  code                        String
-  description                 String?
-  status                      ProgramStatus          @default(DRAFT)
   configurationVersion        Int                    @default(1)
   structureType               ProgramStructureType
   progressionMode             ProgramProgressionMode
   completionMode              ProgramCompletionMode
   minimumPassingPercentage    Float                  @default(50)
   minimumAttendancePercentage Float?
-  durationValue               Int?
-  durationUnit                ProgramDurationUnit?
-  isVisibleForAdmissions      Boolean                @default(false)
-  admissionsLabel             String?
-  admissionsDescription       String?
-  admissionsSortOrder         Int                    @default(0)
   createdAt                   DateTime               @default(now())
   updatedAt                   DateTime               @updatedAt
-  archivedAt                  DateTime?
-  archivedById                String?
-  archiveReason               String?
 
-  organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  department             Department                     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  offerings              ProgramOffering[]
-  configurationRevisions ProgramConfigurationRevision[]
-  curriculumVersions     CurriculumVersion[]
-  studentEnrollments     StudentProgramEnrollment[]
-  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
+  program      Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
-  @@unique([organizationId, code])
-  @@index([organizationId])
+  @@index([organizationId, departmentId])
   @@index([departmentId])
-  @@index([status])
-  @@index([isVisibleForAdmissions, admissionsSortOrder])
 }
 
 model ProgramConfigurationRevision {
@@ -2607,7 +2766,7 @@ model CurriculumVersion {
   program                      Program                      @relation(fields: [programId], references: [id], onDelete: Restrict)
   programConfigurationRevision ProgramConfigurationRevision @relation(fields: [programConfigurationRevisionId], references: [id], onDelete: Restrict)
   stages                       ProgramStage[]
-  offerings                    ProgramOffering[]
+  campusOfferingBindings       CampusProgramOfferingBinding[]
   studentEnrollments           StudentProgramEnrollment[]
 
   @@unique([programId, code])
@@ -2671,35 +2830,188 @@ model StageCourseRequirement {
 }
 
 model ProgramOffering {
-  id                  String                @id @default(uuid())
-  organizationId      String
-  programId           String
-  curriculumVersionId String
-  academicCycleId     String
-  status              ProgramOfferingStatus @default(DRAFT)
-  opensAt             DateTime?
-  closesAt            DateTime?
-  capacity            Int?
-  notes               String?
-  onlineAdmissionEnabled Boolean               @default(false)
+  id                          String                         @id @default(uuid())
+  providerId                  String
+  programId                   String
+  code                        String
+  slug                        String?
+  intakeName                  String
+  status                      ProgramOfferingStatus          @default(DRAFT)
+  applicationOpensAt          DateTime?
+  applicationClosesAt         DateTime?
+  teachingStartsAt            DateTime?
+  teachingEndsAt              DateTime?
+  timezone                    String
+  capacity                    Int?
+  waitlistEnabled             Boolean                        @default(false)
+  deliveryMode                ProgramOfferingDeliveryMode
+  attendanceMode              ProgramOfferingAttendanceMode
+  scheduleSummary             String?
+  durationValue               Int?
+  durationUnit                ProgramDurationUnit?
+  languageCodes               String[]                       @default([])
+  publicSummary               String?
+  detailedInstructions        String?
+  contactEmail                String?
+  supportedActions            ProgramOfferingAction[]        @default([APPLY])
+  notes                       String?
+  onlineAdmissionEnabled      Boolean                         @default(false)
   onlineAdmissionInstructions String?
-  createdById         String
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdById                 String
+  createdAt                   DateTime                       @default(now())
+  updatedAt                   DateTime                       @updatedAt
 
-  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  program           Program                @relation(fields: [programId], references: [id], onDelete: Restrict)
-  curriculumVersion CurriculumVersion      @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
-  academicCycle     AcademicCycle          @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
-  stageOfferings    ProgramStageOffering[]
-  onlineAdmissionDocumentRequirements OnlineAdmissionDocumentRequirement[]
-  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
+  provider                            EducationProvider                    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  program                             Program                              @relation(fields: [programId], references: [id], onDelete: Restrict)
+  campusBinding                       CampusProgramOfferingBinding?
+  applicationConfig                   ProgramOfferingApplicationConfig?
+  locations                           ProgramOfferingLocation[]
+  fees                                ProgramOfferingFee[]
+  fundingOptions                      ProgramOfferingFundingOption[]
+  admissionRequirements               ProgramAdmissionRequirement[]
+  publications                        ProgramOfferingPublication[]
+  admissionsDomainEvents              AdmissionsDomainEvent[]
+  stageOfferings                      ProgramStageOffering[]
+  onlineAdmissionSubmissions          OnlineAdmissionSubmission[]
 
-  @@unique([programId, curriculumVersionId, academicCycleId])
-  @@index([organizationId])
-  @@index([academicCycleId, status])
+  @@unique([providerId, code])
+  @@unique([providerId, slug])
+  @@index([providerId])
   @@index([programId, status])
+  @@index([deliveryMode, status])
   @@index([onlineAdmissionEnabled, status])
+}
+
+model ProgramOfferingPublication {
+  id                String   @id @default(uuid())
+  providerId        String
+  programOfferingId String
+  version           Int
+  snapshot          Json
+  publishedById     String
+  publishedAt       DateTime @default(now())
+
+  provider        EducationProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  programOffering ProgramOffering   @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+
+  @@unique([programOfferingId, version])
+  @@index([providerId, publishedAt])
+  @@index([programOfferingId, publishedAt])
+}
+
+model ProgramOfferingFee {
+  id                String   @id @default(uuid())
+  programOfferingId String
+  label             String
+  description       String?
+  amount            Decimal?
+  currencyCode      String
+  frequency         String?
+  isMandatory       Boolean  @default(true)
+  isApplicationFee  Boolean  @default(false)
+  refundable        Boolean?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  programOffering ProgramOffering @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+
+  @@index([programOfferingId, sortOrder])
+}
+
+model ProgramOfferingFundingOption {
+  id                 String   @id @default(uuid())
+  programOfferingId  String
+  title              String
+  description        String?
+  fundingType        String?
+  amountSummary      String?
+  eligibilitySummary String?
+  applicationUrl     String?
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  programOffering ProgramOffering @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+
+  @@index([programOfferingId, sortOrder])
+}
+
+model ProgramAdmissionRequirement {
+  id                String   @id @default(uuid())
+  programOfferingId String
+  label             String
+  description       String?
+  requirementType   String?
+  isRequired        Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  programOffering ProgramOffering @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+
+  @@index([programOfferingId, sortOrder])
+}
+
+model CampusProgramOfferingBinding {
+  id                  String   @id @default(uuid())
+  programOfferingId   String   @unique
+  organizationId      String
+  academicCycleId     String
+  curriculumVersionId String
+  readinessMetadata   Json?
+  readinessCheckedAt  DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  programOffering   ProgramOffering  @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  academicCycle     AcademicCycle    @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  curriculumVersion CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([curriculumVersionId, academicCycleId])
+  @@index([organizationId, academicCycleId])
+  @@index([academicCycleId])
+}
+
+model ProviderLocation {
+  id           String   @id @default(uuid())
+  providerId   String
+  name         String
+  code         String?
+  displayLabel String
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  region       String?
+  countryCode  String?
+  postalCode   String?
+  latitude     Decimal?
+  longitude    Decimal?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  provider  EducationProvider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  offerings ProgramOfferingLocation[]
+
+  @@unique([providerId, name])
+  @@unique([providerId, code])
+  @@index([providerId, isActive])
+  @@index([countryCode, city])
+}
+
+model ProgramOfferingLocation {
+  programOfferingId String
+  providerLocationId String
+  sortOrder          Int     @default(0)
+  notes              String?
+
+  programOffering ProgramOffering @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  providerLocation ProviderLocation @relation(fields: [providerLocationId], references: [id], onDelete: Restrict)
+
+  @@id([programOfferingId, providerLocationId])
+  @@index([providerLocationId])
 }
 
 model ProgramStageOffering {
@@ -2729,87 +3041,222 @@ model ProgramStageOffering {
   @@index([programStageId, status])
 }
 
-model OnlineAdmissionDocumentRequirement {
-  id                String   @id @default(uuid())
-  organizationId    String
-  programOfferingId String
-  label             String
-  description       String?
-  isRequired        Boolean  @default(true)
-  sortOrder         Int      @default(0)
-  acceptedMimeTypes Json?
-  maxFileSizeBytes  Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model AdmissionApplicationTemplate {
+  id              String   @id @default(uuid())
+  providerId      String
+  name            String
+  description     String?
+  isDefaultCampus Boolean  @default(false)
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  programOffering ProgramOffering                 @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  provider EducationProvider                    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  versions AdmissionApplicationTemplateVersion[]
+
+  @@unique([providerId, name])
+  @@index([providerId, isDefaultCampus])
+}
+
+model AdmissionApplicationTemplateVersion {
+  id             String                            @id @default(uuid())
+  templateId     String
+  version        Int
+  status         AdmissionApplicationVersionStatus @default(DRAFT)
+  schemaVersion  Int                               @default(1)
+  definition     Json
+  uiSchema       Json?
+  consentText    String?
+  consentVersion String?
+  createdById    String
+  publishedById  String?
+  publishedAt    DateTime?
+  createdAt      DateTime                          @default(now())
+
+  template             AdmissionApplicationTemplate      @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  documentRequirements AdmissionDocumentRequirement[]
+  offeringConfigs      ProgramOfferingApplicationConfig[]
+  submissions          OnlineAdmissionSubmission[]
+
+  @@unique([templateId, version])
+  @@index([templateId, status])
+}
+
+model AdmissionDocumentRequirement {
+  id                    String   @id @default(uuid())
+  templateVersionId     String
+  key                   String
+  label                 String
+  description           String?
+  category              String?
+  isRequired            Boolean  @default(true)
+  sortOrder             Int      @default(0)
+  acceptedMimeTypes     String[] @default([])
+  acceptedExtensions    String[] @default([])
+  maxFileSizeBytes      Int?
+  maxFileCount          Int      @default(1)
+  requiresExpiryDate    Boolean  @default(false)
+  createdAt             DateTime @default(now())
+
+  templateVersion AdmissionApplicationTemplateVersion @relation(fields: [templateVersionId], references: [id], onDelete: Cascade)
   uploads         OnlineAdmissionDocumentUpload[]
 
-  @@index([organizationId])
-  @@index([programOfferingId, sortOrder])
+  @@unique([templateVersionId, key])
+  @@index([templateVersionId, sortOrder])
+}
+
+model ProgramOfferingApplicationConfig {
+  id                        String   @id @default(uuid())
+  providerId                String
+  programOfferingId         String   @unique
+  applicationVersionId      String
+  allowApplicantUpdates     Boolean  @default(true)
+  requireEmailVerification  Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  provider           EducationProvider                    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  programOffering    ProgramOffering                       @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  applicationVersion AdmissionApplicationTemplateVersion   @relation(fields: [applicationVersionId], references: [id], onDelete: Restrict)
+
+  @@index([providerId])
+  @@index([applicationVersionId])
 }
 
 model OnlineAdmissionSubmission {
-  id                String                          @id @default(uuid())
-  publicReference   String                          @unique
-  organizationId    String
-  departmentId      String
-  programId         String
-  programOfferingId String
-  academicCycleId   String
-  status            OnlineAdmissionSubmissionStatus @default(SUBMITTED)
-  applicantEmail    String
-  applicantName     String
-  applicantPhone    String?
-  formData          Json
-  sourceIpHash      String?
-  userAgent         String?
-  updateTokenHash   String?
+  id                   String                          @id @default(uuid())
+  publicReference      String                          @unique
+  providerId           String
+  organizationId       String?
+  departmentId         String?
+  programId            String
+  programOfferingId    String
+  academicCycleId      String?
+  applicationVersionId String
+  intent               ProgramOfferingAction               @default(APPLY)
+  status               OnlineAdmissionSubmissionStatus @default(SUBMITTED)
+  applicantEmail       String
+  applicantName        String
+  applicantPhone       String?
+  formData             Json
+  formDefinitionSnapshot Json
+  documentRequirementsSnapshot Json
+  consentVersionSnapshot String?
+  sourceIpHash         String?
+  userAgent            String?
+  updateTokenHash      String?
   updateTokenExpiresAt DateTime?
-  submittedAt       DateTime                        @default(now())
-  updatedAt         DateTime                        @updatedAt
-  reviewedById      String?
-  reviewedAt        DateTime?
-  decisionReason    String?
-  admittedStudentId String?                         @unique
+  submittedAt          DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+  reviewedById         String?
+  reviewedAt           DateTime?
+  decisionReason       String?
+  admittedStudentId    String?                         @unique
+  providerOutcome      String?
+  providerOutcomeNote  String?
+  providerOutcomeAt    DateTime?
 
-  organization    Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  department      Department                        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  program         Program                           @relation(fields: [programId], references: [id], onDelete: Restrict)
-  programOffering ProgramOffering                   @relation(fields: [programOfferingId], references: [id], onDelete: Restrict)
-  academicCycle   AcademicCycle                     @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
-  reviewedBy      User?                             @relation("OnlineAdmissionSubmissionReviewers", fields: [reviewedById], references: [id], onDelete: SetNull)
-  admittedStudent Student?                          @relation("OnlineAdmissionAdmittedStudent", fields: [admittedStudentId], references: [id], onDelete: SetNull)
+  organization    Organization?                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  provider        EducationProvider               @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  department      Department?                     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  program         Program                         @relation(fields: [programId], references: [id], onDelete: Restrict)
+  programOffering ProgramOffering                 @relation(fields: [programOfferingId], references: [id], onDelete: Restrict)
+  academicCycle   AcademicCycle?                  @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  applicationVersion AdmissionApplicationTemplateVersion @relation(fields: [applicationVersionId], references: [id], onDelete: Restrict)
+  reviewedBy      User?                           @relation("OnlineAdmissionSubmissionReviewers", fields: [reviewedById], references: [id], onDelete: SetNull)
+  admittedStudent Student?                        @relation("OnlineAdmissionAdmittedStudent", fields: [admittedStudentId], references: [id], onDelete: SetNull)
   documentUploads OnlineAdmissionDocumentUpload[]
   statusEvents    OnlineAdmissionStatusEvent[]
+  additionalDocumentRequests AdditionalDocumentRequest[]
+  admissionsDomainEvents AdmissionsDomainEvent[]
 
   @@index([organizationId, status, submittedAt])
+  @@index([providerId, status, submittedAt])
   @@index([departmentId, status])
   @@index([programId, status])
   @@index([programOfferingId, status])
+  @@index([applicationVersionId])
+  @@index([providerId, programOfferingId, intent, applicantEmail])
   @@index([academicCycleId, status])
   @@index([applicantEmail])
   @@index([updateTokenHash])
 }
 
+model AdmissionsDomainEvent {
+  id                String   @id @default(uuid())
+  providerId        String
+  programOfferingId String?
+  submissionId      String?
+  eventType         String
+  payload           Json
+  publishedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  provider        EducationProvider          @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  programOffering ProgramOffering?           @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  submission      OnlineAdmissionSubmission? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, createdAt])
+  @@index([programOfferingId, createdAt])
+  @@index([submissionId, createdAt])
+  @@index([eventType, publishedAt])
+}
+
 model OnlineAdmissionDocumentUpload {
   id             String   @id @default(uuid())
-  organizationId String
+  providerId     String
+  organizationId String?
   submissionId   String
-  requirementId  String
+  requirementId  String?
+  additionalDocumentRequestId String?
   fileId         String   @unique
   labelSnapshot  String
+  policySnapshot Json
+  expiryDate     DateTime?
   createdAt      DateTime @default(now())
 
-  organization Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  organization Organization?                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  provider     EducationProvider                  @relation(fields: [providerId], references: [id], onDelete: Restrict)
   submission   OnlineAdmissionSubmission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  requirement  OnlineAdmissionDocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  requirement  AdmissionDocumentRequirement? @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  additionalDocumentRequest AdditionalDocumentRequest? @relation(fields: [additionalDocumentRequestId], references: [id], onDelete: Restrict)
   file         File                               @relation(fields: [fileId], references: [id], onDelete: Restrict)
 
-  @@unique([submissionId, requirementId])
   @@index([organizationId])
+  @@index([providerId])
   @@index([requirementId])
+  @@index([additionalDocumentRequestId])
+}
+
+model AdditionalDocumentRequest {
+  id                 String                          @id @default(uuid())
+  providerId         String
+  organizationId     String?
+  submissionId       String
+  key                String
+  label              String
+  description        String?
+  category           String?
+  acceptedMimeTypes  String[]                        @default([])
+  acceptedExtensions String[]                        @default([])
+  maxFileSizeBytes   Int?
+  maxFileCount       Int                             @default(1)
+  requiresExpiryDate Boolean                         @default(false)
+  status             AdditionalDocumentRequestStatus @default(REQUESTED)
+  dueAt               DateTime?
+  requestedById      String
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  provider     EducationProvider              @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  organization Organization?                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  submission   OnlineAdmissionSubmission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  uploads      OnlineAdmissionDocumentUpload[]
+
+  @@unique([submissionId, key])
+  @@index([providerId, status])
+  @@index([organizationId, status])
+  @@index([submissionId, status])
 }
 
 model OnlineAdmissionStatusEvent {

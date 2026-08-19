@@ -1,35 +1,21 @@
 'use client';
 
 import { FormEvent, useCallback, useMemo, useState } from 'react';
+import type React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import useSWR from 'swr';
-import { ArrowLeft, CheckCircle2, FileText, Mail, Paperclip, Phone, Send, User } from 'lucide-react';
+import { ArrowLeft, BadgeDollarSign, CheckCircle2, FileText, Gift, Paperclip, Send, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { PublicOnlineAdmissionOffering } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
 import { StatusBanner } from '@/components/ui/StatusBanner';
-import { Textarea } from '@/components/ui/Textarea';
 import { CapVerification } from '@/components/ui/CapVerification';
-
-const initialForm = {
-    applicantName: '',
-    applicantEmail: '',
-    applicantPhone: '',
-    fatherName: '',
-    gender: '',
-    dateOfBirth: '',
-    address: '',
-    emergencyContact: '',
-    bloodGroup: '',
-    previousSchool: '',
-    notes: '',
-};
+import { AdmissionFormRenderer } from '@/components/admissions/AdmissionFormRenderer';
 
 export default function AdmissionApplicationPage() {
     const params = useParams<{ slug: string; offeringId: string }>();
@@ -39,16 +25,21 @@ export default function AdmissionApplicationPage() {
         ['public-online-admissions-offering', offeringId],
         () => api.publicOnlineAdmissions.getOffering(offeringId),
     );
-    const [form, setForm] = useState(initialForm);
+    const [answers, setAnswers] = useState<Record<string, unknown>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [reference, setReference] = useState('');
-    const [documents, setDocuments] = useState<Record<string, File | null>>({});
+    const [documents, setDocuments] = useState<Record<string, File[]>>({});
+    const [documentExpiryDates, setDocumentExpiryDates] = useState<Record<string, string>>({});
+    const [consentAccepted, setConsentAccepted] = useState(false);
     const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [verificationResetKey, setVerificationResetKey] = useState(0);
-    const requirements = useMemo(() => offering?.onlineAdmissionDocumentRequirements || [], [offering]);
+    const requirements = useMemo(() => offering?.applicationForm?.documentRequirements || [], [offering]);
+    const applicantEmail = useMemo(() => {
+        const field = offering?.applicationForm.definition.sections.flatMap((section) => section.fields).find((item) => item.canonicalTarget === 'applicant.email');
+        return field && typeof answers[field.key] === 'string' ? answers[field.key] as string : '';
+    }, [answers, offering]);
 
-    const updateField = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
     const handleVerificationChange = useCallback((value: string | null) => setCaptchaToken(value), []);
 
     const handleSubmit = async (event: FormEvent) => {
@@ -58,20 +49,10 @@ export default function AdmissionApplicationPage() {
         setIsSubmitting(true);
         try {
             const result = await api.publicOnlineAdmissions.submit(offering.id, {
-                applicantName: form.applicantName.trim(),
-                applicantEmail: form.applicantEmail.trim(),
-                applicantPhone: form.applicantPhone.trim() || undefined,
-                formData: {
-                    fatherName: form.fatherName,
-                    gender: form.gender,
-                    dateOfBirth: form.dateOfBirth,
-                    address: form.address,
-                    emergencyContact: form.emergencyContact,
-                    bloodGroup: form.bloodGroup,
-                    previousSchool: form.previousSchool,
-                    notes: form.notes,
-                },
+                answers,
                 documents,
+                documentExpiryDates,
+                consentAccepted,
                 captchaToken,
             });
             setReference(result.reference);
@@ -101,19 +82,58 @@ export default function AdmissionApplicationPage() {
                     <div className="rounded-lg border border-success/35 bg-success/10 p-6">
                         <CheckCircle2 className="h-9 w-9 text-success" aria-hidden="true" />
                         <h1 className="mt-4 text-2xl font-black">Application submitted</h1>
-                        <p className="mt-2 text-sm font-semibold text-muted-foreground">Your reference number is <span className="text-foreground">{reference}</span>. Updates will be sent to {form.applicantEmail}.</p>
+                        <p className="mt-2 text-sm font-semibold text-muted-foreground">Your reference number is <span className="text-foreground">{reference}</span>. Updates will be sent to {applicantEmail}.</p>
                     </div>
                 ) : (
                     <>
                         <header className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
                             <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="primary" size="sm">{offering.program.code}</Badge>
-                                <Badge variant="neutral" size="sm">{offering.academicCycle.code}</Badge>
+                                <Badge variant="neutral" size="sm">{offering.academicCycle?.code || offering.intakeName}</Badge>
                             </div>
                             <h1 className="mt-3 text-3xl font-black tracking-tight">{offering.program.name}</h1>
-                            <p className="mt-1 text-sm font-semibold text-muted-foreground">{offering.organization.name}</p>
+                            <p className="mt-1 text-sm font-semibold text-muted-foreground">{offering.organization?.name || offering.provider.displayName}</p>
+                            {offering.publicSummary && <p className="mt-4 max-w-3xl text-sm text-card-foreground/80">{offering.publicSummary}</p>}
                             {offering.onlineAdmissionInstructions && <p className="mt-4 max-w-3xl text-sm text-card-foreground/80">{offering.onlineAdmissionInstructions}</p>}
                         </header>
+
+                        {(offering.fees?.length || offering.admissionRequirements?.length || offering.fundingOptions?.length || offering.detailedInstructions) && (
+                            <section className="grid gap-3 md:grid-cols-3">
+                                {Boolean(offering.fees?.length) && (
+                                    <DisclosurePanel icon={BadgeDollarSign} title="Fees">
+                                        {offering.fees!.map((fee) => (
+                                            <div key={fee.id || fee.label} className="border-b border-border/60 py-2 last:border-0">
+                                                <p className="text-sm font-black">{fee.label}</p>
+                                                <p className="text-sm font-semibold text-muted-foreground">{fee.amount ? `${fee.currencyCode} ${fee.amount}` : fee.currencyCode}{fee.frequency ? ` - ${fee.frequency}` : ''}</p>
+                                                {fee.description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{fee.description}</p>}
+                                            </div>
+                                        ))}
+                                    </DisclosurePanel>
+                                )}
+                                {Boolean(offering.admissionRequirements?.length) && (
+                                    <DisclosurePanel icon={ShieldCheck} title="Eligibility">
+                                        {offering.admissionRequirements!.map((requirement) => (
+                                            <div key={requirement.id || requirement.label} className="border-b border-border/60 py-2 last:border-0">
+                                                <p className="text-sm font-black">{requirement.label}{requirement.isRequired ? ' *' : ''}</p>
+                                                {requirement.description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{requirement.description}</p>}
+                                            </div>
+                                        ))}
+                                    </DisclosurePanel>
+                                )}
+                                {Boolean(offering.fundingOptions?.length) && (
+                                    <DisclosurePanel icon={Gift} title="Funding">
+                                        {offering.fundingOptions!.map((option) => (
+                                            <div key={option.id || option.title} className="border-b border-border/60 py-2 last:border-0">
+                                                <p className="text-sm font-black">{option.title}</p>
+                                                {(option.amountSummary || option.fundingType) && <p className="text-sm font-semibold text-muted-foreground">{[option.amountSummary, option.fundingType].filter(Boolean).join(' - ')}</p>}
+                                                {option.eligibilitySummary && <p className="mt-1 text-xs font-semibold text-muted-foreground">{option.eligibilitySummary}</p>}
+                                            </div>
+                                        ))}
+                                    </DisclosurePanel>
+                                )}
+                                {offering.detailedInstructions && <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:col-span-3"><p className="whitespace-pre-wrap text-sm font-semibold text-muted-foreground">{offering.detailedInstructions}</p></div>}
+                            </section>
+                        )}
 
                         {requirements.length > 0 && (
                             <section className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
@@ -135,19 +155,7 @@ export default function AdmissionApplicationPage() {
                         {submitError && <StatusBanner title="Submission failed" description={submitError} variant="danger" />}
 
                         <form onSubmit={handleSubmit} className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <label className="space-y-2 text-sm font-bold">Full name<Input icon={User} required value={form.applicantName} onChange={(event) => updateField('applicantName', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Email<Input icon={Mail} type="email" required value={form.applicantEmail} onChange={(event) => updateField('applicantEmail', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Phone<Input icon={Phone} value={form.applicantPhone} onChange={(event) => updateField('applicantPhone', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Father name<Input value={form.fatherName} onChange={(event) => updateField('fatherName', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Gender<Input value={form.gender} onChange={(event) => updateField('gender', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Date of birth<Input type="date" value={form.dateOfBirth} onChange={(event) => updateField('dateOfBirth', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Emergency contact<Input value={form.emergencyContact} onChange={(event) => updateField('emergencyContact', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold">Blood group<Input value={form.bloodGroup} onChange={(event) => updateField('bloodGroup', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold md:col-span-2">Address<Textarea value={form.address} onChange={(event) => updateField('address', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold md:col-span-2">Previous school<Input value={form.previousSchool} onChange={(event) => updateField('previousSchool', event.target.value)} /></label>
-                                <label className="space-y-2 text-sm font-bold md:col-span-2">Notes<Textarea value={form.notes} onChange={(event) => updateField('notes', event.target.value)} /></label>
-                            </div>
+                            <AdmissionFormRenderer definition={offering.applicationForm.definition} answers={answers} onChange={(key, value) => setAnswers((current) => ({ ...current, [key]: value }))} />
                             {requirements.length > 0 && (
                                 <div className="mt-5 border-t border-border/70 pt-5">
                                     <div className="flex items-center gap-2">
@@ -161,16 +169,29 @@ export default function AdmissionApplicationPage() {
                                                 <input
                                                     type="file"
                                                     required={item.isRequired}
-                                                    accept={item.acceptedMimeTypes?.join(',') || undefined}
-                                                    onChange={(event) => setDocuments((current) => ({ ...current, [item.id]: event.target.files?.[0] || null }))}
+                                                    multiple={item.maxFileCount > 1}
+                                                    accept={[...item.acceptedMimeTypes, ...item.acceptedExtensions].join(',') || undefined}
+                                                    onChange={(event) => setDocuments((current) => ({ ...current, [item.id]: Array.from(event.target.files || []).slice(0, item.maxFileCount) }))}
                                                     className="block w-full text-sm font-semibold text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-bold file:text-primary-foreground"
                                                 />
+                                                {item.requiresExpiryDate && <input
+                                                    type="date"
+                                                    required
+                                                    value={documentExpiryDates[item.id] || ''}
+                                                    onChange={(event) => setDocumentExpiryDates((current) => ({ ...current, [item.id]: event.target.value }))}
+                                                    className="block h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+                                                />}
                                                 {item.description && <span className="block text-xs font-semibold text-muted-foreground">{item.description}</span>}
+                                                {item.maxFileCount > 1 && <span className="block text-xs font-semibold text-muted-foreground">Up to {item.maxFileCount} files</span>}
                                             </label>
                                         ))}
                                     </div>
                                 </div>
                             )}
+                            {offering.applicationForm.consentText && <label className="mt-5 flex items-start gap-3 border-t border-border/70 pt-5 text-sm font-semibold">
+                                <input type="checkbox" required checked={consentAccepted} onChange={(event) => setConsentAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                                <span>{offering.applicationForm.consentText}</span>
+                            </label>}
                             <div className="mt-5">
                                 <CapVerification purpose="ONLINE_ADMISSION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={isSubmitting} />
                             </div>
@@ -181,6 +202,18 @@ export default function AdmissionApplicationPage() {
                     </>
                 )}
             </div>
+        </div>
+    );
+}
+
+function DisclosurePanel({ icon: Icon, title, children }: { icon: React.ElementType<{ className?: string }>; title: string; children: React.ReactNode }) {
+    return (
+        <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+                <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+                <h2 className="text-base font-black">{title}</h2>
+            </div>
+            <div className="mt-2 divide-y divide-border/60">{children}</div>
         </div>
     );
 }

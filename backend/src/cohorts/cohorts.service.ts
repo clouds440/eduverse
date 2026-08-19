@@ -43,7 +43,7 @@ const COHORT_INCLUDE = {
       programStageOffering: {
         include: {
           programStage: true,
-          programOffering: { include: { program: { include: { department: true } } } },
+          programOffering: { include: { program: { include: { campusConfiguration: { include: { department: true } } } } } },
         },
       },
       sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
@@ -97,7 +97,7 @@ export class CohortsService {
     const offering = await this.prisma.cohortOffering.findFirst({
       where: { id: offeringId, organizationId: orgId },
       include: {
-        programStageOffering: { include: { programOffering: { include: { program: true } } } },
+        programStageOffering: { include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } } },
         sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
       },
     });
@@ -106,7 +106,7 @@ export class CohortsService {
       throw new ConflictException('Closed or cancelled cohort offerings cannot be changed');
     }
     await this.assertDepartmentContext(orgId, actor, [
-      offering.programStageOffering?.programOffering.program.departmentId,
+      offering.programStageOffering?.programOffering.program.campusConfiguration?.departmentId,
       ...offering.sections.map((link) => link.section.course.departmentId),
     ]);
     return offering;
@@ -118,7 +118,7 @@ export class CohortsService {
       include: {
         offerings: {
           include: {
-            programStageOffering: { include: { programOffering: { include: { program: true } } } },
+            programStageOffering: { include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } } },
             sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
           },
         },
@@ -126,7 +126,7 @@ export class CohortsService {
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
     await this.assertDepartmentContext(orgId, actor, cohort.offerings.flatMap((offering) => [
-      offering.programStageOffering?.programOffering.program.departmentId,
+      offering.programStageOffering?.programOffering.program.campusConfiguration?.departmentId,
       ...offering.sections.map((link) => link.section.course.departmentId),
     ]));
     return cohort;
@@ -139,7 +139,7 @@ export class CohortsService {
         cohort: true,
         academicCycle: true,
         programStageOffering: {
-          include: { programStage: true, programOffering: { include: { program: true } } },
+          include: { programStage: true, programOffering: { include: { program: { include: { campusConfiguration: true } } } } },
         },
         sections: { include: { section: { omit: SECTION_COMPONENT_OMIT } } },
       },
@@ -174,15 +174,15 @@ export class CohortsService {
     if (cohort.status !== CohortLifecycleStatus.ACTIVE) throw new ConflictException('Only active cohorts can be offered');
     await assertAcademicCycleWritable(this.prisma, orgId, cycle.id, 'SETUP');
 
-    let stageOffering: { id: string; programOffering: { program: { departmentId: string } } } | null = null;
+    let stageOffering: { id: string; programOffering: { program: { campusConfiguration: { departmentId: string } | null } } } | null = null;
     if (dto.programStageOfferingId) {
       stageOffering = await this.prisma.programStageOffering.findFirst({
         where: {
           id: dto.programStageOfferingId,
           organizationId: orgId,
-          programOffering: { academicCycleId: cycle.id },
+          programOffering: { campusBinding: { academicCycleId: cycle.id } },
         },
-        include: { programOffering: { include: { program: true } } },
+        include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } },
       });
       if (!stageOffering) throw new BadRequestException('Program stage offering does not belong to this academic cycle');
     }
@@ -194,7 +194,7 @@ export class CohortsService {
       : [];
     if (sections.length !== sectionIds.length) throw new BadRequestException('All sections must belong to the cohort offering cycle');
     await this.assertDepartmentContext(orgId, actor, [
-      stageOffering?.programOffering.program.departmentId,
+      stageOffering?.programOffering.program.campusConfiguration?.departmentId,
       ...sections.map((section) => section.course.departmentId),
     ]);
 
@@ -234,15 +234,15 @@ export class CohortsService {
       if (!cohort) throw new NotFoundException('Cohort not found');
     }
 
-    let stageOffering: { id: string; programOffering: { program: { departmentId: string } } } | null = null;
+    let stageOffering: { id: string; programOffering: { program: { campusConfiguration: { departmentId: string } | null } } } | null = null;
     if (dto.programStageOfferingId) {
       stageOffering = await this.prisma.programStageOffering.findFirst({
         where: {
           id: dto.programStageOfferingId,
           organizationId: orgId,
-          programOffering: { academicCycleId: cycle.id },
+          programOffering: { campusBinding: { academicCycleId: cycle.id } },
         },
-        include: { programOffering: { include: { program: true } } },
+        include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } },
       });
       if (!stageOffering) throw new BadRequestException('Program stage offering does not belong to this academic cycle');
     }
@@ -257,7 +257,7 @@ export class CohortsService {
       : [];
     if (sections.length !== sectionIds.length) throw new BadRequestException('All sections must belong to the cohort offering cycle');
     await this.assertDepartmentContext(orgId, actor, [
-      stageOffering?.programOffering.program.departmentId,
+      stageOffering?.programOffering.program.campusConfiguration?.departmentId,
       ...sections.map((section) => section.course.departmentId),
     ]);
 
@@ -285,7 +285,7 @@ export class CohortsService {
             id: stageOfferingId,
             organizationId: orgId,
             status: 'OPEN',
-            programOffering: { status: 'OPEN', academicCycleId: current.academicCycleId },
+            programOffering: { status: 'OPEN', campusBinding: { academicCycleId: current.academicCycleId } },
           },
           select: { id: true },
         });
@@ -308,12 +308,12 @@ export class CohortsService {
           where: {
             id: dto.programStageOfferingId,
             organizationId: orgId,
-            programOffering: { academicCycleId: current.academicCycleId },
+            programOffering: { campusBinding: { academicCycleId: current.academicCycleId } },
           },
-          include: { programOffering: { include: { program: true } } },
+          include: { programOffering: { include: { program: { include: { campusConfiguration: true } } } } },
         });
         if (!target) throw new BadRequestException('Program stage offering does not belong to this academic cycle');
-        await this.assertDepartmentContext(orgId, actor, [target.programOffering.program.departmentId]);
+        await this.assertDepartmentContext(orgId, actor, [target.programOffering.program.campusConfiguration?.departmentId]);
       }
     }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import useSWR from 'swr';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -13,11 +13,15 @@ import {
     PaginatedResponse,
     Program,
     ProgramOffering,
+    ProgramOfferingAction,
+    ProgramOfferingAttendanceMode,
+    ProgramOfferingDeliveryMode,
     ProgramOfferingStatus,
+    ProviderLocation,
     ProgramStageOfferingStatus,
-    OnlineAdmissionDocumentRequirementInput,
 } from '@/types';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -39,35 +43,6 @@ function localDateTime(value?: string | null) {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-type RequirementDraft = OnlineAdmissionDocumentRequirementInput & {
-    acceptedMimeTypesText?: string;
-    maxFileSizeMb?: string;
-};
-
-function newRequirementDraft(sortOrder: number): RequirementDraft {
-    return {
-        label: '',
-        description: '',
-        isRequired: true,
-        sortOrder,
-        acceptedMimeTypesText: '',
-        maxFileSizeMb: '',
-    };
-}
-
-function normalizeRequirementDrafts(requirements: RequirementDraft[]): OnlineAdmissionDocumentRequirementInput[] {
-    return requirements
-        .map((requirement, index) => ({
-            label: requirement.label.trim(),
-            description: requirement.description?.trim() || null,
-            isRequired: requirement.isRequired ?? true,
-            sortOrder: index,
-            acceptedMimeTypes: requirement.acceptedMimeTypesText?.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean),
-            maxFileSizeBytes: requirement.maxFileSizeMb ? Math.round(Number(requirement.maxFileSizeMb) * 1024 * 1024) : null,
-        }))
-        .filter((requirement) => requirement.label);
-}
-
 export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSaved }: ProgramOfferingModalProps) {
     const { token } = useAuth();
     const { dispatch } = useGlobal();
@@ -78,13 +53,24 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
     const [curriculumVersionId, setCurriculumVersionId] = useState('');
     const [academicCycleId, setAcademicCycleId] = useState('');
     const [status, setStatus] = useState(ProgramOfferingStatus.DRAFT);
+    const [code, setCode] = useState('');
+    const [intakeName, setIntakeName] = useState('');
+    const [timezone, setTimezone] = useState('UTC');
+    const [deliveryMode, setDeliveryMode] = useState(ProgramOfferingDeliveryMode.ON_CAMPUS);
+    const [attendanceMode, setAttendanceMode] = useState(ProgramOfferingAttendanceMode.FULL_TIME);
     const [capacity, setCapacity] = useState('');
+    const [waitlistEnabled, setWaitlistEnabled] = useState(false);
+    const [scheduleSummary, setScheduleSummary] = useState('');
+    const [publicSummary, setPublicSummary] = useState('');
+    const [contactEmail, setContactEmail] = useState('');
+    const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
+    const [newLocationName, setNewLocationName] = useState('');
+    const [newLocationLabel, setNewLocationLabel] = useState('');
     const [notes, setNotes] = useState('');
-    const [onlineAdmissionEnabled, setOnlineAdmissionEnabled] = useState(false);
-    const [onlineAdmissionInstructions, setOnlineAdmissionInstructions] = useState('');
-    const [documentRequirements, setDocumentRequirements] = useState<RequirementDraft[]>([]);
     const [opensAt, setOpensAt] = useState('');
     const [closesAt, setClosesAt] = useState('');
+    const [teachingStartsAt, setTeachingStartsAt] = useState('');
+    const [teachingEndsAt, setTeachingEndsAt] = useState('');
     const [selectedStageIds, setSelectedStageIds] = useState<string[]>([]);
     const [stageStatuses, setStageStatuses] = useState<Record<string, ProgramStageOfferingStatus>>({});
     const [error, setError] = useState('');
@@ -92,33 +78,41 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
         token && isOpen ? ['academic-cycles', { limit: 100 }] : null,
         () => api.academicCycles.getCycles(token!, { limit: 100 }),
     );
+    const { data: providerLocations = [], mutate: mutateLocations } = useSWR<ProviderLocation[]>(
+        token && isOpen ? ['program-offering-provider-locations', token] : null,
+        () => api.programOfferings.listProviderLocations(token!),
+    );
     const curriculum = curricula.find((item) => item.id === curriculumVersionId);
 
     useEffect(() => {
         if (!isOpen) return;
-        const initial = offering?.curriculumVersion
+        const initial = offering?.campusBinding?.curriculumVersion || offering?.curriculumVersion
             || curricula.find((item) => item.isDefaultForAdmissions)
             || curricula.find((item) => item.status === CurriculumStatus.ACTIVE)
             || curricula[0];
         setCurriculumVersionId(initial?.id || '');
         setSelectedStageIds(offering ? offering.stageOfferings.map((stage) => stage.programStageId) : (initial?.stages || []).map((stage) => stage.id));
         setStageStatuses(Object.fromEntries((offering?.stageOfferings || []).map((stage) => [stage.programStageId, stage.status])));
-        setAcademicCycleId(offering?.academicCycleId || '');
+        setAcademicCycleId(offering?.campusBinding?.academicCycleId || offering?.academicCycle?.id || '');
         setStatus(offering?.status || ProgramOfferingStatus.DRAFT);
+        setCode(offering?.code || `${program.code}-${new Date().getFullYear()}`);
+        setIntakeName(offering?.intakeName || '');
+        setTimezone(offering?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+        setDeliveryMode(offering?.deliveryMode || ProgramOfferingDeliveryMode.ON_CAMPUS);
+        setAttendanceMode(offering?.attendanceMode || ProgramOfferingAttendanceMode.FULL_TIME);
         setCapacity(offering?.capacity ? String(offering.capacity) : '');
+        setWaitlistEnabled(Boolean(offering?.waitlistEnabled));
+        setScheduleSummary(offering?.scheduleSummary || '');
+        setPublicSummary(offering?.publicSummary || '');
+        setContactEmail(offering?.contactEmail || '');
+        setSelectedLocationIds(offering?.locations?.map((location) => location.providerLocationId) || []);
+        setNewLocationName('');
+        setNewLocationLabel('');
         setNotes(offering?.notes || '');
-        setOnlineAdmissionEnabled(Boolean(offering?.onlineAdmissionEnabled));
-        setOnlineAdmissionInstructions(offering?.onlineAdmissionInstructions || '');
-        setDocumentRequirements((offering?.onlineAdmissionDocumentRequirements || []).map((requirement, index) => ({
-            label: requirement.label,
-            description: requirement.description || '',
-            isRequired: requirement.isRequired,
-            sortOrder: requirement.sortOrder ?? index,
-            acceptedMimeTypesText: requirement.acceptedMimeTypes?.join(', ') || '',
-            maxFileSizeMb: requirement.maxFileSizeBytes ? String(Math.round((requirement.maxFileSizeBytes / 1024 / 1024) * 10) / 10) : '',
-        })));
-        setOpensAt(localDateTime(offering?.opensAt));
-        setClosesAt(localDateTime(offering?.closesAt));
+        setOpensAt(localDateTime(offering?.applicationOpensAt));
+        setClosesAt(localDateTime(offering?.applicationClosesAt));
+        setTeachingStartsAt(localDateTime(offering?.teachingStartsAt));
+        setTeachingEndsAt(localDateTime(offering?.teachingEndsAt));
         setError('');
     }, [curricula, isOpen, offering]);
 
@@ -132,8 +126,8 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
     const submit = async (event: FormEvent) => {
         event.preventDefault();
         if (!token) return;
-        if (!curriculumVersionId || !academicCycleId || selectedStageIds.length === 0) {
-            setError('Select a curriculum, an academic cycle, and at least one stage.');
+        if (!code.trim() || !intakeName.trim() || !timezone.trim() || !curriculumVersionId || !academicCycleId || selectedStageIds.length === 0) {
+            setError('Code, intake, timezone, curriculum, academic cycle, and at least one stage are required.');
             return;
         }
         dispatch({ type: 'UI_START_PROCESSING', payload: 'program-offering-save' });
@@ -141,31 +135,41 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
         try {
             const mutable = {
                 status: offering ? status : ProgramOfferingStatus.DRAFT,
-                opensAt: opensAt ? new Date(opensAt).toISOString() : offering ? null : undefined,
-                closesAt: closesAt ? new Date(closesAt).toISOString() : offering ? null : undefined,
+                intakeName: intakeName.trim(),
+                timezone: timezone.trim(),
+                deliveryMode,
+                attendanceMode,
+                supportedActions: [ProgramOfferingAction.APPLY],
+                applicationOpensAt: opensAt ? new Date(opensAt).toISOString() : offering ? null : undefined,
+                applicationClosesAt: closesAt ? new Date(closesAt).toISOString() : offering ? null : undefined,
+                teachingStartsAt: teachingStartsAt ? new Date(teachingStartsAt).toISOString() : offering ? null : undefined,
+                teachingEndsAt: teachingEndsAt ? new Date(teachingEndsAt).toISOString() : offering ? null : undefined,
                 capacity: capacity ? Number(capacity) : undefined,
+                waitlistEnabled,
+                scheduleSummary: scheduleSummary || null,
+                publicSummary: publicSummary || null,
+                contactEmail: contactEmail || null,
+                locationIds: selectedLocationIds,
                 notes: notes || undefined,
-                onlineAdmissionEnabled,
-                onlineAdmissionInstructions: onlineAdmissionInstructions || null,
                 stages: selectedStageIds.map((programStageId) => ({
                     programStageId,
                     status: offering ? (stageStatuses[programStageId] || ProgramStageOfferingStatus.PLANNED) : ProgramStageOfferingStatus.PLANNED,
                 })),
             };
-            const requirements = normalizeRequirementDrafts(documentRequirements);
             if (offering) {
                 await api.programOfferings.update(offering.id, mutable, token);
-                await api.programOfferings.replaceOnlineAdmissionRequirements(offering.id, requirements, token);
             } else {
-                const savedOffering = await api.programOfferings.create({
+                const { stages, ...generic } = mutable;
+                await api.programOfferings.create({
                     programId: program.id,
-                    curriculumVersionId,
-                    academicCycleId,
-                    ...mutable,
+                    code: code.trim(),
+                    ...generic,
+                    campusBinding: {
+                        curriculumVersionId,
+                        academicCycleId,
+                        stages,
+                    },
                 }, token);
-                if (requirements.length) {
-                    await api.programOfferings.replaceOnlineAdmissionRequirements(savedOffering.id, requirements, token);
-                }
             }
             dispatch({ type: 'TOAST_ADD', payload: { message: `Program offering ${offering ? 'updated' : 'created'}`, type: 'success' } });
             await onSaved();
@@ -174,6 +178,22 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
             setError(cause instanceof Error ? cause.message : 'Unable to save program offering');
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'program-offering-save' });
+        }
+    };
+
+    const addLocation = async () => {
+        if (!token || !newLocationName.trim() || !newLocationLabel.trim()) return;
+        try {
+            const location = await api.programOfferings.createProviderLocation({
+                name: newLocationName.trim(),
+                displayLabel: newLocationLabel.trim(),
+            }, token);
+            await mutateLocations((current = []) => [...current, location], { revalidate: false });
+            setSelectedLocationIds((current) => [...new Set([...current, location.id])]);
+            setNewLocationName('');
+            setNewLocationLabel('');
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Unable to create location');
         }
     };
 
@@ -186,68 +206,40 @@ export function ProgramOfferingModal({ isOpen, program, offering, onClose, onSav
             loadingId="program-offering-save"
             onSubmit={submit}
         >
-            <div className="rounded-md border border-border/70 bg-muted/25 px-4 py-3 text-sm font-medium text-muted-foreground">An offering connects this program and curriculum to one institute-wide academic cycle. The program structure remains unchanged.</div>
+            <div className="rounded-md border border-border/70 bg-muted/25 px-4 py-3 text-sm font-medium text-muted-foreground">Offering details describe this intake publicly. The Campus binding below connects it to the curriculum and academic cycle used for delivery.</div>
             {error && <div role="alert" className="rounded-md border border-danger/35 bg-danger/5 px-4 py-3 text-sm font-semibold text-danger">{error}</div>}
+            <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Label>Offering code</Label><Input value={code} onChange={(event) => setCode(event.target.value)} disabled={Boolean(offering)} /></div>
+                <div className="space-y-2"><Label>Intake name</Label><Input value={intakeName} onChange={(event) => setIntakeName(event.target.value)} placeholder="Fall 2026" /></div>
+                <div className="space-y-2"><Label>Delivery mode</Label><CustomSelect value={deliveryMode} onChange={(value) => setDeliveryMode(value as ProgramOfferingDeliveryMode)} options={Object.values(ProgramOfferingDeliveryMode).map((value) => ({ value, label: value.replaceAll('_', ' ') }))} /></div>
+                <div className="space-y-2"><Label>Attendance mode</Label><CustomSelect value={attendanceMode} onChange={(value) => setAttendanceMode(value as ProgramOfferingAttendanceMode)} options={Object.values(ProgramOfferingAttendanceMode).map((value) => ({ value, label: value.replaceAll('_', ' ') }))} /></div>
+                <div className="space-y-2"><Label>Timezone</Label><Input value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="Asia/Karachi" /></div>
+                <div className="space-y-2"><Label>Contact email</Label><Input type="email" value={contactEmail} onChange={(event) => setContactEmail(event.target.value)} /></div>
+            </div>
+            <div className="space-y-2"><Label>Public summary</Label><Textarea rows={3} value={publicSummary} onChange={(event) => setPublicSummary(event.target.value)} /></div>
+            <div className="space-y-2"><Label>Schedule summary</Label><Textarea rows={2} value={scheduleSummary} onChange={(event) => setScheduleSummary(event.target.value)} placeholder="Weekdays, 9:00 AM to 1:00 PM" /></div>
+            {deliveryMode !== ProgramOfferingDeliveryMode.ONLINE && (
+                <div className="space-y-3">
+                    <Label>Teaching locations</Label>
+                    <CustomMultiSelect values={selectedLocationIds} onChange={setSelectedLocationIds} options={providerLocations.map((location) => ({ value: location.id, label: location.name, description: location.displayLabel }))} placeholder="Select one or more locations" />
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+                        <Input value={newLocationName} onChange={(event) => setNewLocationName(event.target.value)} placeholder="Location name" />
+                        <Input value={newLocationLabel} onChange={(event) => setNewLocationLabel(event.target.value)} placeholder="Full address or display label" />
+                        <button type="button" onClick={addLocation} disabled={!newLocationName.trim() || !newLocationLabel.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-primary/30 px-3 text-sm font-bold text-primary disabled:opacity-50"><Plus className="h-4 w-4" />Add</button>
+                    </div>
+                </div>
+            )}
             <div className="space-y-2"><Label>Curriculum</Label><CustomSelect value={curriculumVersionId} onChange={chooseCurriculum} disabled={Boolean(offering)} options={curricula.map((item) => ({ value: item.id, label: `${item.code} - ${item.name} (${item.status})` }))} placeholder="Select curriculum" /></div>
             <div className="space-y-2"><Label>Academic cycle</Label><CustomSelect value={academicCycleId} onChange={setAcademicCycleId} disabled={Boolean(offering)} searchable options={(cycles?.data || []).filter((cycle) => cycle.status === AcademicCycleStatus.DRAFT || cycle.status === AcademicCycleStatus.ACTIVE).map((cycle) => ({ value: cycle.id, label: `${cycle.code} - ${cycle.name}` }))} placeholder="Select institute cycle" /></div>
             {offering && <div className="space-y-2"><Label>Offering status</Label><CustomSelect value={status} onChange={setStatus} options={programOfferingStatusOptions(offering.status)} /></div>}
             <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label>Opens at</Label><Input type="datetime-local" value={opensAt} onChange={(event) => setOpensAt(event.target.value)} /></div>
-                <div className="space-y-2"><Label>Closes at</Label><Input type="datetime-local" value={closesAt} onChange={(event) => setClosesAt(event.target.value)} /></div>
+                <div className="space-y-2"><Label>Applications open</Label><Input type="datetime-local" value={opensAt} onChange={(event) => setOpensAt(event.target.value)} /></div>
+                <div className="space-y-2"><Label>Applications close</Label><Input type="datetime-local" value={closesAt} onChange={(event) => setClosesAt(event.target.value)} /></div>
+                <div className="space-y-2"><Label>Teaching starts</Label><Input type="datetime-local" value={teachingStartsAt} onChange={(event) => setTeachingStartsAt(event.target.value)} /></div>
+                <div className="space-y-2"><Label>Teaching ends</Label><Input type="datetime-local" value={teachingEndsAt} onChange={(event) => setTeachingEndsAt(event.target.value)} /></div>
             </div>
             <div className="space-y-2"><Label>Capacity</Label><Input type="number" min={1} value={capacity} onChange={(event) => setCapacity(event.target.value)} placeholder="No limit" /></div>
-            <fieldset className="space-y-3 rounded-md border border-border/70 bg-muted/15 p-3">
-                <legend className="px-1 text-sm font-bold">Online admissions</legend>
-                <Toggle
-                    checked={onlineAdmissionEnabled}
-                    onCheckedChange={setOnlineAdmissionEnabled}
-                    label="Accept online applications"
-                    description="Organization admissions must also be enabled in settings before this appears publicly."
-                />
-                <div className="space-y-2">
-                    <Label>Public instructions</Label>
-                    <Textarea rows={3} value={onlineAdmissionInstructions} onChange={(event) => setOnlineAdmissionInstructions(event.target.value)} placeholder="Optional instructions shown before students apply." />
-                </div>
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                        <Label>Required documents</Label>
-                        <button
-                            type="button"
-                            onClick={() => setDocumentRequirements((current) => [...current, newRequirementDraft(current.length)])}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary/25 px-2.5 text-xs font-black text-primary transition-colors hover:bg-primary/10"
-                        >
-                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                            Add
-                        </button>
-                    </div>
-                    <div className="space-y-2">
-                        {documentRequirements.map((requirement, index) => (
-                            <div key={index} className="grid gap-2 rounded-md border border-border/60 bg-card/70 p-3">
-                                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                                    <Input value={requirement.label} onChange={(event) => setDocumentRequirements((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value } : item))} placeholder="Document label, e.g. Previous transcript" />
-                                    <button
-                                        type="button"
-                                        onClick={() => setDocumentRequirements((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                                        className="inline-flex h-10 items-center justify-center rounded-md border border-danger/25 px-3 text-danger transition-colors hover:bg-danger/10"
-                                        aria-label="Remove document requirement"
-                                    >
-                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                    </button>
-                                </div>
-                                <Textarea rows={2} value={requirement.description || ''} onChange={(event) => setDocumentRequirements((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item))} placeholder="Optional applicant-facing description" />
-                                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
-                                    <Input value={requirement.acceptedMimeTypesText || ''} onChange={(event) => setDocumentRequirements((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, acceptedMimeTypesText: event.target.value } : item))} placeholder="Accepted MIME types, comma-separated" />
-                                    <Input type="number" min={1} value={requirement.maxFileSizeMb || ''} onChange={(event) => setDocumentRequirements((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, maxFileSizeMb: event.target.value } : item))} placeholder="Max MB" />
-                                    <Toggle checked={requirement.isRequired ?? true} onCheckedChange={(isRequired) => setDocumentRequirements((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, isRequired } : item))} label="Required" size="sm" />
-                                </div>
-                            </div>
-                        ))}
-                        {documentRequirements.length === 0 && (
-                            <p className="rounded-md border border-dashed border-border/70 px-3 py-4 text-center text-sm font-semibold text-muted-foreground">No document requirements yet.</p>
-                        )}
-                    </div>
-                </div>
-            </fieldset>
+            <Toggle checked={waitlistEnabled} onCheckedChange={setWaitlistEnabled} label="Enable waitlist" />
             <fieldset className="space-y-2">
                 <legend className="text-sm font-bold">Stages available in this cycle</legend>
                 <div className="divide-y divide-border/60 rounded-md border border-border/70">

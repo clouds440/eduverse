@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums';
@@ -7,7 +7,7 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { OnlineAdmissionsService } from './online-admissions.service';
-import { MarkOnlineAdmissionAdmittedDto, UpdateOnlineAdmissionSubmissionStatusDto } from './dto/online-admission.dto';
+import { CreateAdditionalDocumentRequestDto, MarkOnlineAdmissionAdmittedDto, UpdateOnlineAdmissionSubmissionStatusDto } from './dto/online-admission.dto';
 
 @Access(AccessLevel.READ)
 @Controller('org/online-admissions')
@@ -115,6 +115,18 @@ export class AdminOnlineAdmissionsController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.admissions.updateStatus(orgId, id, req.user, dto.status, dto.note);
+  }
+
+  @Post(':id/document-requests')
+  @Access(AccessLevel.WRITE)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  requestDocument(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateAdditionalDocumentRequestDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.admissions.createAdditionalDocumentRequest(orgId, id, req.user, dto);
   }
 
   @Patch(':id/admit')

@@ -245,16 +245,20 @@ export class AcademicCyclesService {
         gpaPolicy: {
           select: { id: true, name: true, isArchived: true },
         },
-        programOfferings: {
-          orderBy: { program: { name: 'asc' } },
+        campusProgramOfferingBindings: {
+          orderBy: { programOffering: { program: { name: 'asc' } } },
           include: {
-            program: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-                status: true,
-                departmentId: true,
+            programOffering: {
+              include: {
+                program: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    status: true,
+                    campusConfiguration: { select: { departmentId: true } },
+                  },
+                },
               },
             },
           },
@@ -369,7 +373,7 @@ export class AcademicCyclesService {
         const unresolvedStageEnrollments =
           await tx.studentStageEnrollment.count({
             where: {
-              programStageOffering: { programOffering: { academicCycleId: id } },
+              programStageOffering: { programOffering: { campusBinding: { academicCycleId: id } } },
               status: 'IN_PROGRESS',
             },
           });
@@ -432,7 +436,7 @@ export class AcademicCyclesService {
         'Only an unused draft academic cycle can be deleted',
       );
     }
-    const associationCount = await this.prisma.programOffering.count({
+    const associationCount = await this.prisma.campusProgramOfferingBinding.count({
       where: { academicCycleId: id },
     });
     if (

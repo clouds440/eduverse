@@ -7,6 +7,21 @@ function setup() {
     register: jest.fn((tool: { name: string; run: (input: unknown, context: any) => Promise<any> }) => tools.set(tool.name, tool.run)),
   };
   const admissions = {
+    listPublicOfferings: jest.fn().mockResolvedValue([{
+      id: 'offering-1',
+      provider: { displayName: 'Open Provider', slug: 'open-provider' },
+      program: { code: 'CERT-AI', name: 'AI Certificate', programType: 'CERTIFICATE', subjectArea: 'AI' },
+      deliveryMode: 'ONLINE',
+      attendanceMode: 'SELF_PACED',
+      intakeName: 'September 2026',
+      applicationClosesAt: new Date('2026-09-01T00:00:00Z'),
+      locations: [],
+      organization: null,
+      fees: [{ label: 'Tuition', amount: '100', currencyCode: 'USD', frequency: null }],
+      admissionRequirements: [{ label: 'Open admission', isRequired: true }],
+      fundingOptions: [{ title: 'Installments', amountSummary: 'Monthly' }],
+      applicationForm: { documentRequirements: [{ label: 'ID', isRequired: true }] },
+    }]),
     listAdminSubmissions: jest.fn().mockResolvedValue({
       data: [{
         id: 'submission-1',
@@ -39,11 +54,12 @@ function setup() {
 }
 
 describe('AIOnlineAdmissionsToolsService', () => {
-  it('registers both online admission context tools', () => {
+  it('registers online admission context tools', () => {
     const { tools } = setup();
     expect(Array.from(tools.keys())).toEqual([
       'getOnlineAdmissionsContext',
       'getOnlineAdmissionOfferingReadiness',
+      'getPublicAdmissionsCatalogContext',
     ]);
   });
 
@@ -93,11 +109,19 @@ describe('AIOnlineAdmissionsToolsService', () => {
       opensAt: null,
       closesAt: null,
       capacity: 40,
-      program: { id: 'program-1', code: 'BSCS', name: 'Computer Science', status: 'ACTIVE', isVisibleForAdmissions: true, department: { id: 'dept-1', name: 'Computing' } },
-      curriculumVersion: { id: 'curriculum-1', code: '2026', name: '2026 Curriculum', status: 'ACTIVE', isDefaultForAdmissions: true },
-      academicCycle: { id: 'cycle-1', code: 'F26', name: 'Fall 2026', status: 'ACTIVE', startDate: new Date(), endDate: new Date() },
-      onlineAdmissionDocumentRequirements: [{ label: 'Transcript', isRequired: true, acceptedMimeTypes: ['application/pdf'], maxFileSizeBytes: 1024 }],
+      program: { id: 'program-1', code: 'BSCS', name: 'Computer Science', status: 'ACTIVE', campusConfiguration: { department: { id: 'dept-1', name: 'Computing' } } },
+      campusBinding: {
+        curriculumVersion: { id: 'curriculum-1', code: '2026', name: '2026 Curriculum', status: 'ACTIVE', isDefaultForAdmissions: true },
+        academicCycle: { id: 'cycle-1', code: 'F26', name: 'Fall 2026', status: 'ACTIVE', startDate: new Date(), endDate: new Date() },
+      },
+      applicationConfig: { applicationVersion: {
+        id: 'version-1', version: 1, status: 'PUBLISHED',
+        documentRequirements: [{ label: 'Transcript', isRequired: true, acceptedMimeTypes: ['application/pdf'], maxFileSizeBytes: 1024 }],
+      } },
       _count: { onlineAdmissionSubmissions: 3 },
+      fees: [{ label: 'No fee' }],
+      fundingOptions: [],
+      admissionRequirements: [{ label: 'Open admission' }],
     }]);
 
     const result = await tools.get('getOnlineAdmissionOfferingReadiness')!(
@@ -108,9 +132,35 @@ describe('AIOnlineAdmissionsToolsService', () => {
     expect(result).toEqual(expect.objectContaining({
       ok: true,
       data: expect.objectContaining({
-        organization: expect.objectContaining({ publicAdmissionsEnabled: true, publicAdmissionsHref: '/admissions/test-school' }),
-        offerings: [expect.objectContaining({ submissions: 3, applicationWindowOpen: true })],
+        organization: expect.objectContaining({ publicAdmissionsEnabled: true, publicAdmissionsHref: '/admissions/providers/test-school' }),
+        offerings: [expect.objectContaining({
+          submissions: 3,
+          applicationWindowOpen: true,
+          applicationForm: expect.objectContaining({ version: 1, status: 'PUBLISHED' }),
+          documentRequirements: [expect.objectContaining({ label: 'Transcript', required: true })],
+        })],
       }),
     }));
+  });
+
+  it('returns provider-neutral public catalog context', async () => {
+    const { tools, admissions } = setup();
+    const result = await tools.get('getPublicAdmissionsCatalogContext')!(
+      { search: 'ai', onlineOnly: true, maxFee: 200 },
+      { userId: 'guest', role: null },
+    );
+
+    expect(result).toEqual(expect.objectContaining({
+      ok: true,
+      data: expect.objectContaining({
+        totalRecords: 1,
+        offerings: [expect.objectContaining({
+          provider: 'Open Provider',
+          href: '/admissions/apply/offering-1',
+          fees: [expect.objectContaining({ label: 'Tuition' })],
+        })],
+      }),
+    }));
+    expect(admissions.listPublicOfferings).toHaveBeenCalledWith(expect.objectContaining({ search: 'ai', onlineOnly: true, maxFee: 200 }));
   });
 });

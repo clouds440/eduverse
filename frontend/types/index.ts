@@ -587,7 +587,7 @@ export interface StudentAcademicIdentity {
 export interface StudentProgramOverview {
     enrollmentId?: string;
     status?: string;
-    program: Pick<Program, 'id' | 'name' | 'code' | 'durationValue' | 'durationUnit' | 'progressionMode' | 'completionMode'> & { department?: Pick<Department, 'id' | 'name' | 'code'> | null };
+    program: Pick<Program, 'id' | 'name' | 'code' | 'durationValue' | 'durationUnit' | 'campusConfiguration'>;
     curriculum: { id?: string; name?: string | null; code?: string | null } | null;
     admittedAt?: string | null;
     startedAt?: string | null;
@@ -3702,6 +3702,20 @@ export enum ProgramDurationUnit {
     CYCLES = 'CYCLES',
 }
 
+export enum ProgramType {
+    DEGREE = 'DEGREE',
+    DIPLOMA = 'DIPLOMA',
+    CERTIFICATE = 'CERTIFICATE',
+    COURSE = 'COURSE',
+    SHORT_COURSE = 'SHORT_COURSE',
+    BOOTCAMP = 'BOOTCAMP',
+    WORKSHOP = 'WORKSHOP',
+    TUTORING = 'TUTORING',
+    COACHING = 'COACHING',
+    CLASS = 'CLASS',
+    OTHER = 'OTHER',
+}
+
 export enum CurriculumStatus {
     DRAFT = 'DRAFT',
     ACTIVE = 'ACTIVE',
@@ -3735,18 +3749,30 @@ export type ProgramStageInput = {
 export interface CreateProgramRequest {
     name: string;
     code: string;
-    departmentId: string;
+    slug?: string;
+    programType: ProgramType;
+    subjectArea?: string;
+    educationLevel?: string;
+    summary?: string;
     description?: string;
-    structureType: ProgramStructureType;
-    progressionMode: ProgramProgressionMode;
-    completionMode: ProgramCompletionMode;
-    minimumPassingPercentage: number;
-    minimumAttendancePercentage?: number | null;
+    languageCodes?: string[];
+    credentialType?: string;
+    credentialAwarded?: string;
+    targetAudience?: string;
+    learningOutcomes?: string[];
+    entryOverview?: string;
+    awardingBody?: string;
+    accreditationSummary?: string;
     durationValue?: number;
     durationUnit?: ProgramDurationUnit;
-    isVisibleForAdmissions?: boolean;
-    admissionsLabel?: string;
-    admissionsDescription?: string;
+    campusConfiguration: {
+        departmentId: string;
+        structureType: ProgramStructureType;
+        progressionMode: ProgramProgressionMode;
+        completionMode: ProgramCompletionMode;
+        minimumPassingPercentage: number;
+        minimumAttendancePercentage?: number | null;
+    };
     curriculumName: string;
     curriculumCode: string;
     stageTerminology?: string;
@@ -3755,9 +3781,47 @@ export interface CreateProgramRequest {
 
 export enum ProgramOfferingStatus {
     DRAFT = 'DRAFT',
+    PUBLISHED = 'PUBLISHED',
     OPEN = 'OPEN',
     CLOSED = 'CLOSED',
     CANCELLED = 'CANCELLED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum ProgramOfferingDeliveryMode {
+    ON_CAMPUS = 'ON_CAMPUS',
+    ONLINE = 'ONLINE',
+    HYBRID = 'HYBRID',
+    FLEXIBLE = 'FLEXIBLE',
+}
+
+export enum ProgramOfferingAttendanceMode {
+    FULL_TIME = 'FULL_TIME',
+    PART_TIME = 'PART_TIME',
+    SELF_PACED = 'SELF_PACED',
+    SCHEDULED = 'SCHEDULED',
+    OTHER = 'OTHER',
+}
+
+export enum ProgramOfferingAction {
+    APPLY = 'APPLY',
+    ENROLL_INTEREST = 'ENROLL_INTEREST',
+    REQUEST_INFO = 'REQUEST_INFO',
+}
+
+export interface ProviderLocation {
+    id: string;
+    providerId: string;
+    name: string;
+    code?: string | null;
+    displayLabel: string;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    region?: string | null;
+    countryCode?: string | null;
+    postalCode?: string | null;
+    isActive: boolean;
 }
 
 export enum ProgramStageOfferingStatus {
@@ -3767,27 +3831,83 @@ export enum ProgramStageOfferingStatus {
     CANCELLED = 'CANCELLED',
 }
 
-export interface OnlineAdmissionDocumentRequirement {
-    id: string;
-    organizationId: string;
-    programOfferingId: string;
+export type AdmissionFieldType = 'SHORT_TEXT' | 'LONG_TEXT' | 'EMAIL' | 'PHONE' | 'DATE' | 'NUMBER' | 'SELECT' | 'MULTI_SELECT' | 'RADIO' | 'CHECKBOX' | 'ADDRESS' | 'CONSENT' | 'DOCUMENT_UPLOAD';
+export type AdmissionCanonicalTarget = 'applicant.name' | 'applicant.email' | 'applicant.phone' | 'student.fatherName' | 'student.gender' | 'student.dateOfBirth' | 'student.address' | 'student.emergencyContact' | 'student.bloodGroup' | 'student.previousSchool' | 'student.notes' | 'guardian.name' | 'guardian.email' | 'guardian.phone' | 'guardian.relationship';
+
+export interface AdmissionFormField {
+    key: string;
+    type: AdmissionFieldType;
     label: string;
-    description?: string | null;
-    isRequired: boolean;
-    sortOrder: number;
-    acceptedMimeTypes?: string[] | null;
-    maxFileSizeBytes?: number | null;
-    createdAt?: string;
-    updatedAt?: string;
+    helpText?: string;
+    placeholder?: string;
+    required?: boolean;
+    options?: Array<{ value: string; label: string }>;
+    canonicalTarget?: AdmissionCanonicalTarget;
+    validation?: { minLength?: number; maxLength?: number; min?: number; max?: number };
+    visibility?: { fieldKey: string; operator: 'EQUALS' | 'NOT_EQUALS'; value: string | number | boolean };
 }
 
-export interface OnlineAdmissionDocumentRequirementInput {
+export interface AdmissionFormDefinition {
+    sections: Array<{ key: string; title: string; description?: string; fields: AdmissionFormField[] }>;
+}
+
+export interface AdmissionDocumentRequirement {
+    id: string;
+    templateVersionId?: string;
+    key: string;
     label: string;
     description?: string | null;
+    category?: string | null;
+    isRequired: boolean;
+    sortOrder: number;
+    acceptedMimeTypes: string[];
+    acceptedExtensions: string[];
+    maxFileSizeBytes?: number | null;
+    maxFileCount: number;
+    requiresExpiryDate: boolean;
+    createdAt?: string;
+}
+
+export interface AdmissionDocumentRequirementInput {
+    key: string;
+    label: string;
+    description?: string | null;
+    category?: string | null;
     isRequired?: boolean;
     sortOrder?: number;
     acceptedMimeTypes?: string[];
+    acceptedExtensions?: string[];
     maxFileSizeBytes?: number | null;
+    maxFileCount?: number;
+    requiresExpiryDate?: boolean;
+}
+
+export type AdmissionApplicationVersionStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface AdmissionApplicationTemplateVersion {
+    id: string;
+    templateId: string;
+    version: number;
+    status: AdmissionApplicationVersionStatus;
+    schemaVersion: number;
+    definition: AdmissionFormDefinition;
+    uiSchema?: Record<string, unknown> | null;
+    consentText?: string | null;
+    consentVersion?: string | null;
+    publishedAt?: string | null;
+    documentRequirements: AdmissionDocumentRequirement[];
+    _count?: { offeringConfigs: number; submissions: number };
+}
+
+export interface AdmissionApplicationTemplate {
+    id: string;
+    providerId: string;
+    name: string;
+    description?: string | null;
+    isDefaultCampus: boolean;
+    versions: AdmissionApplicationTemplateVersion[];
+    createdAt: string;
+    updatedAt: string;
 }
 
 export enum OnlineAdmissionSubmissionStatus {
@@ -3810,7 +3930,36 @@ export interface PublicOnlineAdmissionOrganization {
 }
 
 export interface PublicOnlineAdmissionOffering extends ProgramOffering {
-    organization: Pick<Organization, 'id' | 'name' | 'location' | 'logoUrl'> & { slug: string; onlineAdmissionsEnabled?: boolean };
+    provider: {
+        id: string;
+        displayName: string;
+        slug: string;
+        kind: string;
+        defaultCurrency?: string | null;
+        contactEmail?: string | null;
+    };
+    organization?: (Pick<Organization, 'id' | 'name' | 'location' | 'logoUrl'> & { slug: string; onlineAdmissionsEnabled?: boolean }) | null;
+    applicationForm: {
+        versionId: string;
+        schemaVersion: number;
+        definition: AdmissionFormDefinition;
+        uiSchema?: Record<string, unknown> | null;
+        consentText?: string | null;
+        consentVersion?: string | null;
+        documentRequirements: AdmissionDocumentRequirement[];
+        allowApplicantUpdates: boolean;
+    };
+}
+
+export interface PublicOnlineAdmissionProviderDetail {
+    id: string;
+    displayName: string;
+    slug: string;
+    kind: string;
+    defaultCurrency?: string | null;
+    contactEmail?: string | null;
+    campusOrganization?: (Pick<Organization, 'id' | 'name' | 'location' | 'logoUrl'> & { slug: string; onlineAdmissionsEnabled?: boolean }) | null;
+    programOfferings: PublicOnlineAdmissionOffering[];
 }
 
 export interface PublicOnlineAdmissionOrganizationDetail {
@@ -3823,11 +3972,11 @@ export interface PublicOnlineAdmissionOrganizationDetail {
 }
 
 export interface CreateOnlineAdmissionSubmissionRequest {
-    applicantEmail: string;
-    applicantName: string;
-    applicantPhone?: string;
-    formData: Record<string, unknown>;
-    documents?: Record<string, File | null | undefined>;
+    answers: Record<string, unknown>;
+    intent?: ProgramOfferingAction;
+    documents?: Record<string, File | File[] | null | undefined>;
+    documentExpiryDates?: Record<string, string>;
+    consentAccepted?: boolean;
     captchaToken: string;
 }
 
@@ -3836,17 +3985,28 @@ export interface PublicOnlineAdmissionUpdateSubmission {
     publicReference: string;
     status: OnlineAdmissionSubmissionStatus;
     applicantName: string;
-    organization: Pick<Organization, 'id' | 'name' | 'logoUrl'> & { slug: string };
+    provider?: { id: string; displayName: string; slug: string; kind: string };
+    organization?: (Pick<Organization, 'id' | 'name' | 'logoUrl'> & { slug: string }) | null;
     program: Pick<Program, 'id' | 'name' | 'code'>;
     submittedAt: string;
-    documentRequirements: OnlineAdmissionDocumentRequirement[];
+    formDefinition: AdmissionFormDefinition;
+    documentRequirements: AdmissionDocumentRequirement[];
+    additionalDocumentRequests: AdditionalDocumentRequest[];
     documentUploads: Array<{
         id: string;
-        requirementId: string;
+        requirementId?: string | null;
+        additionalDocumentRequestId?: string | null;
         labelSnapshot: string;
+        expiryDate?: string | null;
         file: Attachment;
         createdAt: string;
     }>;
+}
+
+export interface AdditionalDocumentRequest extends Omit<AdmissionDocumentRequirement, 'templateVersionId' | 'isRequired' | 'sortOrder'> {
+    submissionId?: string;
+    status: 'REQUESTED' | 'SUBMITTED' | 'ACCEPTED' | 'WAIVED';
+    dueAt?: string | null;
 }
 
 export interface OnlineAdmissionSubmission {
@@ -3862,12 +4022,15 @@ export interface OnlineAdmissionSubmission {
     applicantName: string;
     applicantPhone?: string | null;
     formData: Record<string, unknown>;
+    formDefinitionSnapshot: AdmissionFormDefinition;
+    documentRequirementsSnapshot: AdmissionDocumentRequirement[];
+    canonicalData?: Partial<Record<AdmissionCanonicalTarget, unknown>>;
     submittedAt: string;
     updatedAt: string;
     reviewedAt?: string | null;
     decisionReason?: string | null;
     department?: Department;
-    program?: Pick<Program, 'id' | 'name' | 'code' | 'departmentId'>;
+    program?: Pick<Program, 'id' | 'name' | 'code'>;
     academicCycle?: AcademicCycle;
     programOffering?: ProgramOffering;
     statusEvents?: Array<{
@@ -3881,12 +4044,16 @@ export interface OnlineAdmissionSubmission {
     }>;
     documentUploads?: Array<{
         id: string;
-        requirementId: string;
+        requirementId?: string | null;
+        additionalDocumentRequestId?: string | null;
         labelSnapshot: string;
+        expiryDate?: string | null;
         createdAt: string;
-        requirement: OnlineAdmissionDocumentRequirement;
+        requirement?: AdmissionDocumentRequirement | null;
+        additionalDocumentRequest?: AdditionalDocumentRequest | null;
         file: Attachment;
     }>;
+    additionalDocumentRequests?: AdditionalDocumentRequest[];
     _count?: { documentUploads: number };
     requiredDocumentCount?: number;
     uploadedRequiredDocumentCount?: number;
@@ -3894,29 +4061,97 @@ export interface OnlineAdmissionSubmission {
 
 export interface ProgramOffering {
     id: string;
+    providerId: string;
     programId: string;
-    curriculumVersionId: string;
-    academicCycleId: string;
+    code: string;
+    slug?: string | null;
+    intakeName: string;
     status: ProgramOfferingStatus;
-    opensAt?: string | null;
-    closesAt?: string | null;
+    applicationOpensAt?: string | null;
+    applicationClosesAt?: string | null;
+    teachingStartsAt?: string | null;
+    teachingEndsAt?: string | null;
+    timezone: string;
     capacity?: number | null;
+    waitlistEnabled: boolean;
+    deliveryMode: ProgramOfferingDeliveryMode;
+    attendanceMode: ProgramOfferingAttendanceMode;
+    scheduleSummary?: string | null;
+    durationValue?: number | null;
+    durationUnit?: ProgramDurationUnit | null;
+    languageCodes: string[];
+    publicSummary?: string | null;
+    detailedInstructions?: string | null;
+    contactEmail?: string | null;
+    supportedActions: ProgramOfferingAction[];
+    locations?: Array<{ providerLocationId: string; sortOrder: number; providerLocation: ProviderLocation }>;
+    fees?: ProgramOfferingFee[];
+    fundingOptions?: ProgramOfferingFundingOption[];
+    admissionRequirements?: ProgramAdmissionRequirement[];
     notes?: string | null;
     onlineAdmissionEnabled?: boolean;
     onlineAdmissionInstructions?: string | null;
-    academicCycle: AcademicCycle;
     program: Program;
-    curriculumVersion: CurriculumVersion;
+    campusBinding?: {
+        id: string;
+        organizationId: string;
+        academicCycleId: string;
+        curriculumVersionId: string;
+        academicCycle: AcademicCycle;
+        curriculumVersion: CurriculumVersion;
+    } | null;
+    academicCycle?: AcademicCycle;
+    curriculumVersion?: CurriculumVersion;
     stageOfferings: ProgramStageOffering[];
-    onlineAdmissionDocumentRequirements?: OnlineAdmissionDocumentRequirement[];
+    applicationConfig?: {
+        id: string;
+        applicationVersionId: string;
+        allowApplicantUpdates: boolean;
+        requireEmailVerification: boolean;
+        applicationVersion: AdmissionApplicationTemplateVersion;
+    } | null;
+}
+
+export interface ProgramOfferingFee {
+    id?: string;
+    label: string;
+    description?: string | null;
+    amount?: number | string | null;
+    currencyCode: string;
+    frequency?: string | null;
+    isMandatory: boolean;
+    isApplicationFee: boolean;
+    refundable?: boolean | null;
+    sortOrder?: number;
+}
+
+export interface ProgramOfferingFundingOption {
+    id?: string;
+    title: string;
+    description?: string | null;
+    fundingType?: string | null;
+    amountSummary?: string | null;
+    eligibilitySummary?: string | null;
+    applicationUrl?: string | null;
+    sortOrder?: number;
+}
+
+export interface ProgramAdmissionRequirement {
+    id?: string;
+    label: string;
+    description?: string | null;
+    requirementType?: string | null;
+    isRequired: boolean;
+    sortOrder?: number;
 }
 
 export interface ProgramOfferingReadiness {
     offeringId: string;
-    readyForAdmissions: boolean;
-    readyForDelivery: boolean;
-    blockers: Array<{ code: string; message: string }>;
-    warnings: Array<{ code: string; message: string; stageOfferingId?: string }>;
+    readyForPublicListing: boolean;
+    publicListingBlockers: Array<{ code: string; message: string }>;
+    readyForCampusDelivery: boolean;
+    campusDeliveryBlockers: Array<{ code: string; message: string }>;
+    campusDeliveryWarnings: Array<{ code: string; message: string; stageOfferingId?: string }>;
 }
 
 export interface ProgramStageOffering {
@@ -3934,22 +4169,42 @@ export interface ProgramStageOffering {
 
 export interface CreateProgramOfferingRequest {
     programId: string;
-    curriculumVersionId: string;
-    academicCycleId: string;
+    code: string;
+    slug?: string;
+    intakeName: string;
+    timezone: string;
+    deliveryMode: ProgramOfferingDeliveryMode;
+    attendanceMode: ProgramOfferingAttendanceMode;
+    supportedActions: ProgramOfferingAction[];
     status?: ProgramOfferingStatus;
-    opensAt?: string | null;
-    closesAt?: string | null;
+    applicationOpensAt?: string | null;
+    applicationClosesAt?: string | null;
+    teachingStartsAt?: string | null;
+    teachingEndsAt?: string | null;
     capacity?: number;
+    waitlistEnabled?: boolean;
+    scheduleSummary?: string | null;
+    publicSummary?: string | null;
+    detailedInstructions?: string | null;
+    contactEmail?: string | null;
+    locationIds?: string[];
     notes?: string;
     onlineAdmissionEnabled?: boolean;
     onlineAdmissionInstructions?: string | null;
-    stages: Array<{
-        programStageId: string;
-        status?: ProgramStageOfferingStatus;
-        startsAt?: string;
-        endsAt?: string;
-        capacity?: number;
-    }>;
+    fees?: Array<Omit<ProgramOfferingFee, 'id' | 'sortOrder'>>;
+    fundingOptions?: Array<Omit<ProgramOfferingFundingOption, 'id' | 'sortOrder'>>;
+    admissionRequirements?: Array<Omit<ProgramAdmissionRequirement, 'id' | 'sortOrder'>>;
+    campusBinding: {
+        curriculumVersionId: string;
+        academicCycleId: string;
+        stages: Array<{
+            programStageId: string;
+            status?: ProgramStageOfferingStatus;
+            startsAt?: string;
+            endsAt?: string;
+            capacity?: number;
+        }>;
+    };
 }
 
 export interface StageCourseRequirement {
@@ -3999,24 +4254,37 @@ export interface ProgramConfigurationRevision {
 
 export interface Program {
     id: string;
-    organizationId: string;
-    departmentId: string;
+    providerId: string;
     name: string;
     code: string;
+    slug: string;
+    programType: ProgramType;
+    subjectArea?: string | null;
+    educationLevel?: string | null;
+    summary?: string | null;
     description?: string | null;
+    languageCodes: string[];
+    credentialType?: string | null;
+    credentialAwarded?: string | null;
+    targetAudience?: string | null;
+    learningOutcomes?: string[] | null;
+    entryOverview?: string | null;
+    awardingBody?: string | null;
+    accreditationSummary?: string | null;
     status: ProgramStatus;
-    configurationVersion: number;
-    structureType: ProgramStructureType;
-    progressionMode: ProgramProgressionMode;
-    completionMode: ProgramCompletionMode;
-    minimumPassingPercentage?: number;
-    minimumAttendancePercentage?: number;
     durationValue?: number | null;
     durationUnit?: ProgramDurationUnit | null;
-    isVisibleForAdmissions: boolean;
-    admissionsLabel?: string | null;
-    admissionsDescription?: string | null;
-    department: Pick<Department, 'id' | 'name' | 'code' | 'isActive'>;
+    campusConfiguration?: {
+        organizationId: string;
+        departmentId: string;
+        configurationVersion: number;
+        structureType: ProgramStructureType;
+        progressionMode: ProgramProgressionMode;
+        completionMode: ProgramCompletionMode;
+        minimumPassingPercentage: number;
+        minimumAttendancePercentage?: number | null;
+        department: Pick<Department, 'id' | 'name' | 'code' | 'isActive'>;
+    } | null;
     offerings?: ProgramOffering[];
     curriculumVersions?: CurriculumVersion[];
     configurationRevisions?: ProgramConfigurationRevision[];
