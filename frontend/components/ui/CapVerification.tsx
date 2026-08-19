@@ -1,8 +1,10 @@
 'use client';
 
 import { createElement, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import type { CaptchaPurpose } from '@/types';
 import { StatusBanner } from './StatusBanner';
 
@@ -15,11 +17,13 @@ export function CapVerification({
     onChange,
     resetKey = 0,
     disabled = false,
+    className,
 }: {
     purpose: CaptchaPurpose;
     onChange: (token: string | null) => void;
     resetKey?: number;
     disabled?: boolean;
+    className?: string;
 }) {
     const widgetRef = useRef<CapWidgetElement | null>(null);
     const onChangeRef = useRef(onChange);
@@ -70,9 +74,26 @@ export function CapVerification({
     }, [resetKey, purpose]);
 
     const endpoint = `${API_BASE_URL}/public/captcha/${purpose}/`;
+    const widgetStyle = {
+        display: 'block',
+        width: '100%',
+        '--cap-widget-width': '100%',
+        '--cap-widget-height': '56px',
+        '--cap-widget-padding': '14px 16px',
+        '--cap-border-radius': '8px',
+        '--cap-background': 'var(--card-bg)',
+        '--cap-color': 'var(--card-text)',
+        '--cap-border-color': 'var(--border-color)',
+        '--cap-checkbox-background': 'var(--input-bg)',
+        '--cap-checkbox-border': '1px solid var(--border-color)',
+        '--cap-spinner-background-color': 'var(--muted-bg)',
+        '--cap-spinner-color': 'var(--primary)',
+        '--cap-focus-ring': 'var(--primary)',
+        '--cap-troubleshoot-color': 'var(--primary)',
+    } as CSSProperties;
 
     return (
-        <div className="space-y-2 border-t border-border/70 pt-4">
+        <div className={cn('w-full space-y-3', className)}>
             <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
                 <span className="text-sm font-bold">Human verification</span>
@@ -87,8 +108,9 @@ export function CapVerification({
                         'data-cap-i18n-verifying-label': 'Verifying...',
                         'data-cap-i18n-solved-label': 'Verified',
                         'data-cap-i18n-error-label': 'Try again',
+                        style: widgetStyle,
                     })
-                    : <div className="h-11 rounded-md border border-border bg-muted/35" />}
+                    : <div className="h-14 w-full animate-pulse rounded-lg border border-border bg-muted/35" />}
             </div>
         </div>
     );

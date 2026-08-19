@@ -55,6 +55,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
 import { emitProfanityWarning, PROFANITY_ERROR_CODE } from './profanityWarning';
 import { getDeviceId } from './deviceUtils';
+import { normalizeSafeUrl } from './safeUrl';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
 
@@ -130,6 +131,30 @@ interface ImportConfirmStreamHandlers {
 
 interface QueryParams {
     [key: string]: string | number | boolean | undefined;
+}
+
+interface FileResourceOptions {
+    token?: string | null;
+    method?: 'GET' | 'HEAD';
+    signal?: AbortSignal;
+}
+
+export async function fetchFileResource(url: string, options: FileResourceOptions = {}): Promise<Response> {
+    const safeUrl = normalizeSafeUrl(url, { allowRelative: true });
+    if (!safeUrl) throw new Error('Unsafe file URL');
+
+    const response = await fetch(safeUrl, {
+        method: options.method ?? 'GET',
+        credentials: 'include',
+        headers: options.token ? { Authorization: `Bearer ${options.token}` } : undefined,
+        signal: options.signal,
+    });
+
+    if (response.status === 401 && unauthorizedHandler) {
+        unauthorizedHandler(options.token ?? undefined);
+    }
+
+    return response;
 }
 
 export interface WebPushSubscriptionPayload {

@@ -17,7 +17,7 @@ import { GlobalSearch } from './global-search/GlobalSearch';
 
 const PUBLIC_NAV_LINKS = [
     { name: 'Documentation', href: '/docs' },
-    { name: 'Pricing', href: '/pricing' },
+    { name: 'Online Admissions', href: '/admissions' },
     { name: 'Contact', href: '/contact' },
     { name: 'About Us', href: '/about' },
 ];
@@ -297,8 +297,9 @@ export default function Navbar() {
                 {!isDashboard && (
                     <div className="navbar-control-accent hidden items-center justify-center gap-1 rounded-full border p-1 lg:flex">
                         {PUBLIC_NAV_LINKS.map((item) => {
-                            const isActive = item.href === '/docs'
-                                ? pathname === '/docs' || pathname.startsWith('/docs/')
+                            const isNestedPublicRoute = item.href === '/docs' || item.href === '/admissions';
+                            const isActive = isNestedPublicRoute
+                                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                                 : pathname === item.href;
                             return (
                                 <Link

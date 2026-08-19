@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { getFileTypeInfo } from "@/lib/attachmentUtils";
+import { fetchFileResource } from "@/lib/api";
 import { downloadFile, formatBytes } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
@@ -77,6 +78,98 @@ function getDownloadFileName(fileName: string, kind: AttachmentPreviewKind) {
   return `${trimmed}${EXTENSION_BY_KIND[kind]}`;
 }
 
+function AttachmentMetaBadges({
+  label,
+  color,
+  fileSize,
+  showType = true,
+  size = "full",
+}: {
+  label: string;
+  color: string;
+  fileSize?: number;
+  showType?: boolean;
+  size?: "compact" | "full";
+}) {
+  const className =
+    size === "compact"
+      ? "text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md shadow-xs"
+      : "text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-sm";
+
+  return (
+    <>
+      {showType && (
+        <span className={`${className} text-white`} style={{ background: color }}>
+          {label}
+        </span>
+      )}
+      {fileSize !== undefined && (
+        <span className={`${className} text-muted-foreground bg-background/80 border border-border/40`}>
+          {formatBytes(fileSize)}
+        </span>
+      )}
+    </>
+  );
+}
+
+function AttachmentDownloadButton({
+  fileName,
+  compact,
+  isDownloading,
+  downloadSuccess,
+  onDownload,
+}: {
+  fileName: string;
+  compact: boolean;
+  isDownloading: boolean;
+  downloadSuccess: boolean;
+  onDownload: () => void;
+}) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={isDownloading}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-primary"
+        title={`Download ${fileName}`}
+      >
+        {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onDownload}
+      disabled={isDownloading}
+      className={`shrink-0 flex items-center cursor-pointer gap-2 px-2.5! sm:px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${
+        downloadSuccess
+          ? "bg-success/10! text-success! border-success/30 hover:bg-success/20!"
+          : isDownloading
+            ? "bg-primary/10! text-primary/70! border-primary/20 cursor-wait"
+            : "bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!"
+      }`}
+      aria-label={`Download ${fileName}`}
+    >
+      {isDownloading ? (
+        <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
+      ) : downloadSuccess ? (
+        <CheckCircle className="w-4 h-4" strokeWidth={2.5} />
+      ) : (
+        <Download
+          className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5"
+          strokeWidth={2.5}
+        />
+      )}
+      <span className="hidden sm:inline text-sm font-medium">
+        {isDownloading ? "Downloading..." : downloadSuccess ? "Downloaded" : "Download"}
+      </span>
+    </button>
+  );
+}
+
 export function getAttachmentPreviewKind(
   label: string,
   fileName = "",
@@ -125,7 +218,7 @@ export function AttachmentPreviewCard({
     }
     let active = true;
     let objectUrl: string | null = null;
-    fetch(href, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+    fetchFileResource(href, { token })
       .then((response) => {
         if (!response.ok) throw new Error('Image preview unavailable');
         return response.blob();
@@ -156,7 +249,7 @@ export function AttachmentPreviewCard({
     const fetchSize = async () => {
       try {
         if (href.startsWith("blob:")) {
-          const response = await fetch(href);
+          const response = await fetchFileResource(href);
           const blob = await response.blob();
           if (isMounted) {
             setFileSize(blob.size);
@@ -164,11 +257,7 @@ export function AttachmentPreviewCard({
           return;
         }
 
-        const response = await fetch(href, {
-          method: "HEAD",
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          credentials: "include",
-        });
+        const response = await fetchFileResource(href, { method: "HEAD", token });
         const contentLength = response.headers.get("content-length");
         if (contentLength && isMounted) {
           setFileSize(parseInt(contentLength, 10));
@@ -222,15 +311,9 @@ export function AttachmentPreviewCard({
               )}
             </div>
             <div className="flex items-center justify-between w-full px-1">
-              {fileSize !== undefined && (
-                <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md text-muted-foreground shadow-xs bg-background/50 border border-border/30">
-                  {formatBytes(fileSize)}
-                </span>
-              )}
+              <AttachmentMetaBadges label={fileInfo.label} color={fileInfo.color} fileSize={fileSize} showType={false} size="compact" />
               {compactDownload && !isBlob && (
-                <button type="button" onClick={handleDownload} disabled={isDownloading} className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-primary" title={`Download ${downloadFileName}`}>
-                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                </button>
+                <AttachmentDownloadButton fileName={downloadFileName} compact isDownloading={isDownloading} downloadSuccess={downloadSuccess} onDownload={handleDownload} />
               )}
             </div>
           </div>
@@ -257,23 +340,11 @@ export function AttachmentPreviewCard({
                 {fileName}
               </p>
               <div className="flex items-center gap-1.5">
-                <span
-                  className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md text-white shadow-xs"
-                  style={{ background: fileInfo.color }}
-                >
-                  {fileInfo.label}
-                </span>
-                {fileSize !== undefined && (
-                  <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md text-muted-foreground shadow-xs bg-background/50 border border-border/30">
-                    {formatBytes(fileSize)}
-                  </span>
-                )}
+                <AttachmentMetaBadges label={fileInfo.label} color={fileInfo.color} fileSize={fileSize} size="compact" />
               </div>
             </div>
             {compactDownload && !isBlob && (
-              <button type="button" onClick={handleDownload} disabled={isDownloading} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-primary" title={`Download ${downloadFileName}`}>
-                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              </button>
+              <AttachmentDownloadButton fileName={downloadFileName} compact isDownloading={isDownloading} downloadSuccess={downloadSuccess} onDownload={handleDownload} />
             )}
           </div>
         )}
@@ -304,43 +375,9 @@ export function AttachmentPreviewCard({
             )}
           </div>
           <div className="flex items-center justify-between p-2.5 sm:p-3 bg-card/95">
-            {fileSize !== undefined && (
-              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-muted-foreground shadow-sm bg-background/80 border border-border/40">
-                {formatBytes(fileSize)}
-              </span>
-            )}
+            <AttachmentMetaBadges label={fileInfo.label} color={fileInfo.color} fileSize={fileSize} showType={false} />
             {!isBlob && (
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                className={`shrink-0 flex items-center cursor-pointer gap-2 px-2.5! sm:px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${
-                  downloadSuccess
-                    ? "bg-success/10! text-success! border-success/30 hover:bg-success/20!"
-                    : isDownloading
-                      ? "bg-primary/10! text-primary/70! border-primary/20 cursor-wait"
-                      : "bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!"
-                }`}
-                aria-label={`Download ${downloadFileName}`}
-              >
-                {isDownloading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
-                ) : downloadSuccess ? (
-                  <CheckCircle className="w-4 h-4" strokeWidth={2.5} />
-                ) : (
-                  <Download
-                    className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5"
-                    strokeWidth={2.5}
-                  />
-                )}
-                <span className="hidden sm:inline text-sm font-medium">
-                  {isDownloading
-                    ? "Downloading..."
-                    : downloadSuccess
-                      ? "Downloaded"
-                      : "Download"}
-                </span>
-              </button>
+              <AttachmentDownloadButton fileName={downloadFileName} compact={false} isDownloading={isDownloading} downloadSuccess={downloadSuccess} onDownload={handleDownload} />
             )}
           </div>
         </div>
@@ -368,52 +405,12 @@ export function AttachmentPreviewCard({
               {fileName}
             </p>
             <div className="flex items-center flex-wrap gap-2">
-              <span
-                className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-white shadow-sm"
-                style={{ background: fileInfo.color }}
-              >
-                {fileInfo.label}
-              </span>
-              {fileSize !== undefined && (
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-muted-foreground shadow-sm bg-background/80 border border-border/40">
-                  {formatBytes(fileSize)}
-                </span>
-              )}
+              <AttachmentMetaBadges label={fileInfo.label} color={fileInfo.color} fileSize={fileSize} />
             </div>
           </div>
 
           {!isBlob && (
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className={`shrink-0 flex items-center cursor-pointer gap-2 px-2.5! sm:px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${
-                downloadSuccess
-                  ? "bg-success/10! text-success! border-success/30 hover:bg-success/20!"
-                  : isDownloading
-                    ? "bg-primary/10! text-primary/70! border-primary/20 cursor-wait"
-                    : "bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!"
-              }`}
-              aria-label={`Download ${downloadFileName}`}
-            >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
-              ) : downloadSuccess ? (
-                <CheckCircle className="w-4 h-4" strokeWidth={2.5} />
-              ) : (
-                <Download
-                  className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5"
-                  strokeWidth={2.5}
-                />
-              )}
-              <span className="hidden sm:inline text-sm font-medium">
-                {isDownloading
-                  ? "Downloading..."
-                  : downloadSuccess
-                    ? "Downloaded"
-                    : "Download"}
-              </span>
-            </button>
+            <AttachmentDownloadButton fileName={downloadFileName} compact={false} isDownloading={isDownloading} downloadSuccess={downloadSuccess} onDownload={handleDownload} />
           )}
         </div>
       )}

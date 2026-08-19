@@ -355,23 +355,23 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Submit */}
-                    <div className="space-y-4 max-w-6xl mx-auto flex flex-col">
-                        <CapVerification purpose="ORG_REGISTRATION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing['register-submit'])} />
-                        <div className="justify-center sm:justify-end flex">
+                    <div className="mx-auto w-full max-w-6xl border-t border-border/70 pt-6">
+                        <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
+                            <CapVerification purpose="ORG_REGISTRATION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing['register-submit'])} />
                             <Button
                                 type="submit"
                                 loadingId="register-submit"
                                 icon={ArrowRight}
-                                className="w-auto"
+                                className="w-full sm:w-auto sm:self-end"
                                 loadingText="Creating account..."
                                 disabled={!captchaToken}
                             >
                                 Create Organization
                             </Button>
+                            <p className="text-center text-xs font-medium text-muted-foreground">
+                                By registering, you agree to our <Link href="/terms" className="text-muted-foreground underline hover:text-primary">Terms</Link> and <Link href="/privacy" className="text-muted-foreground underline hover:text-primary">Privacy Policy</Link>.
+                            </p>
                         </div>
-                        <p className="text-center text-xs text-muted-foreground font-medium">
-                            By registering, you agree to our <Link href="/terms" className="text-muted-foreground hover:text-primary underline">Terms</Link> and <Link href="/privacy" className="text-muted-foreground hover:text-primary underline">Privacy Policy</Link>.
-                        </p>
                     </div>
                 </form>
 

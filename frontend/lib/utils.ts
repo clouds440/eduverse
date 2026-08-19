@@ -1,5 +1,6 @@
 ﻿import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { fetchFileResource } from './api';
 import { normalizeSafeUrl } from './safeUrl';
 
 export function cn(...inputs: ClassValue[]) {
@@ -245,10 +246,7 @@ export async function downloadFile(url: string, filename: string, token?: string
         const resolvedUrl = url.startsWith('/') ? getPublicUrl(url) : url;
         const safeUrl = normalizeSafeUrl(resolvedUrl, { allowRelative: true });
         if (!safeUrl) throw new Error('Unsafe download URL');
-        const response = await fetch(safeUrl, {
-            credentials: 'include',
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
+        const response = await fetchFileResource(safeUrl, { token });
         if (!response.ok) throw new Error(`Download failed with ${response.status}`);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
